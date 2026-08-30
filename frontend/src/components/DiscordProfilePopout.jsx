@@ -62,7 +62,7 @@ export default function DiscordProfilePopout({
               </div>
             </div>
           ) : (
-            <div className="profile-val-muted">non contributing member</div>
+            <div className="profile-val-muted">0 GB</div>
           )}
         </div>
 

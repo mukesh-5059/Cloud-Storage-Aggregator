@@ -169,6 +169,61 @@ body {
   color: var(--text-primary);
 }
 
+/* BIG STORAGE USAGE BANNER BELOW TOPBAR */
+.storage-banner-container {
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(180deg, #0e1626 0%, #0b0f19 100%);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.storage-banner-text-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.storage-big-number {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+}
+
+.storage-used-label {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.storage-total-number {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.storage-subtext {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.storage-banner-progress-bg {
+  width: 100%;
+  height: 10px;
+  background-color: #1e293b;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.storage-banner-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e 0%, #3b82f6 100%);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* SEARCH & ACTION BUTTONS */
 .search-input-box {
   display: flex;
   align-items: center;
@@ -234,7 +289,81 @@ body {
   background-color: var(--accent-green-hover);
 }
 
-/* File Table View */
+/* SINGLE-CLICK CONTEXTUAL TOOLBAR */
+.context-toolbar {
+  padding: 0.6rem 1rem;
+  background-color: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  margin-bottom: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: fadeIn 0.15s ease-in-out;
+}
+
+.context-toolbar-info {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.context-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-context-action {
+  padding: 0.4rem 0.75rem;
+  background-color: #1e293b;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.btn-context-action:hover {
+  background-color: #334155;
+  border-color: var(--accent-blue);
+}
+
+.btn-context-action.danger:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+  border-color: var(--accent-red);
+  color: #fca5a5;
+}
+
+/* BREADCRUMB NAVIGATION */
+.breadcrumb-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.breadcrumb-item {
+  cursor: pointer;
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+.breadcrumb-item:hover {
+  text-decoration: underline;
+}
+
+/* FILE TABLE VIEW */
 .file-table-container {
   flex: 1;
   padding: 1rem 1.5rem;
@@ -263,11 +392,18 @@ body {
 }
 
 .file-table tbody tr {
+  cursor: pointer;
+  user-select: none;
   transition: background-color 0.15s ease;
 }
 
 .file-table tbody tr:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.file-table tbody tr.selected-row {
+  background-color: rgba(59, 130, 246, 0.14) !important;
+  outline: 1px solid rgba(59, 130, 246, 0.4);
 }
 
 .file-name-cell {
@@ -445,7 +581,7 @@ body {
   color: var(--text-muted);
 }
 
-/* Badges (Yellow/Gold for OWNER, Slate for MEMBER) */
+/* Badges */
 .badge-owner {
   display: inline-block;
   padding: 0.1rem 0.4rem;
@@ -469,10 +605,7 @@ body {
   border-radius: 4px;
 }
 
-/* ======================================================== */
-/* DISCORD-STYLE HOVER PROFILE CARD POPOUT (Ported from DA1) */
-/* ======================================================== */
-
+/* DISCORD-STYLE PROFILE POPOUT */
 .discord-profile-popout {
   position: fixed;
   right: 285px;

@@ -10,7 +10,9 @@ import {
   SignOutModal,
   CreateRoomModal,
   JoinRoomModal,
-  ContributeStorageModal
+  ContributeStorageModal,
+  MoveFileModal,
+  DeleteFileModal
 } from './components/Modals';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -31,6 +33,10 @@ export default function App() {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showContributeModal, setShowContributeModal] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedFileTarget, setSelectedFileTarget] = useState(null);
+
   const [copiedId, setCopiedId] = useState(false);
 
   // Hovered member state for expanded Discord profile popover card
@@ -248,6 +254,38 @@ export default function App() {
     }
   };
 
+  const handleMoveFile = async (fileId, targetParentId) => {
+    try {
+      await fetch(`${API_BASE_URL}/api/files/move`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ file_id: fileId, target_parent_id: targetParentId }),
+      });
+      setShowMoveModal(false);
+      setSelectedFileTarget(null);
+      if (activeRoomId) fetchRoomDetails(activeRoomId);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleDeleteFile = async (fileId) => {
+    try {
+      await fetch(`${API_BASE_URL}/api/files/${fileId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setShowDeleteModal(false);
+      setSelectedFileTarget(null);
+      if (activeRoomId) fetchRoomDetails(activeRoomId);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const copyRoomId = () => {
     if (!activeRoomDetails) return;
     navigator.clipboard.writeText(activeRoomDetails.room_id);
@@ -288,6 +326,8 @@ export default function App() {
     return <LoginScreen onLogin={loginWithGoogle} loading={loading} error={error} />;
   }
 
+  const availableFolders = activeRoomDetails?.files?.filter((f) => f.is_folder) || [];
+
   return (
     <div className="discord-layout">
       {/* Leftmost Server/Room Icon Rail */}
@@ -306,17 +346,26 @@ export default function App() {
         activeRoomDetails={activeRoomDetails}
         copiedId={copiedId}
         onCopyRoomId={copyRoomId}
+        onOpenMoveModal={(item) => {
+          setSelectedFileTarget(item);
+          setShowMoveModal(true);
+        }}
+        onOpenDeleteModal={(item) => {
+          setSelectedFileTarget(item);
+          setShowDeleteModal(true);
+        }}
       />
 
       {/* Rightmost Sidebar: Storage Pool + Members List */}
       <RightMembersPanel
+        user={user}
         activeRoomDetails={activeRoomDetails}
         onOpenContributeModal={() => setShowContributeModal(true)}
         onMemberMouseEnter={handleMemberMouseEnter}
         onMemberMouseLeave={handleMemberMouseLeave}
       />
 
-      {/* Discord Profile Hover Card (Persists on Hover over Card) */}
+      {/* Discord Profile Hover Card */}
       <DiscordProfilePopout
         member={activeProfileCard}
         top={profileCardTop}
@@ -362,6 +411,29 @@ export default function App() {
           setQuotaGb={setQuotaGb}
           onClose={() => setShowContributeModal(false)}
           onSubmit={handleSaveContribution}
+        />
+      )}
+
+      {showMoveModal && (
+        <MoveFileModal
+          selectedItem={selectedFileTarget}
+          folders={availableFolders}
+          onClose={() => {
+            setShowMoveModal(false);
+            setSelectedFileTarget(null);
+          }}
+          onMove={handleMoveFile}
+        />
+      )}
+
+      {showDeleteModal && (
+        <DeleteFileModal
+          selectedItem={selectedFileTarget}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedFileTarget(null);
+          }}
+          onDelete={handleDeleteFile}
         />
       )}
     </div>

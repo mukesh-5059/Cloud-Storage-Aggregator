@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, LogOut } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, LogOut, Trash2, Move, Download, Folder } from 'lucide-react';
 
 export function SignOutModal({ onClose, onConfirm }) {
   return (
@@ -193,6 +193,84 @@ export function ContributeStorageModal({
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+export function MoveFileModal({ selectedItem, folders, onClose, onMove }) {
+  const [targetFolder, setTargetFolder] = useState('root');
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 className="modal-title">Move Item</h2>
+          <X size={20} style={{ cursor: 'pointer' }} onClick={onClose} />
+        </div>
+        <p className="modal-subtitle">
+          Select destination folder for <strong>{selectedItem?.name}</strong>
+        </p>
+
+        <div className="form-group">
+          <label className="form-label">Destination Folder</label>
+          <select
+            className="form-input"
+            value={targetFolder}
+            onChange={(e) => setTargetFolder(e.target.value)}
+          >
+            <option value="root">📁 Root Directory</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                📁 {f.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="modal-actions">
+          <button
+            type="button"
+            className="btn-save-contribution"
+            onClick={() => onMove(selectedItem?.id, targetFolder)}
+          >
+            <Move size={16} style={{ display: 'inline', marginRight: '6px' }} />
+            Move Item Here
+          </button>
+          <button type="button" className="btn-cancel-modal" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function DeleteFileModal({ selectedItem, onClose, onDelete }) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 className="modal-title">Delete {selectedItem?.is_folder ? 'Folder' : 'File'}</h2>
+          <X size={20} style={{ cursor: 'pointer' }} onClick={onClose} />
+        </div>
+        <p className="modal-subtitle">
+          Are you sure you want to delete <strong>{selectedItem?.name}</strong>? This action cannot be undone.
+        </p>
+
+        <div className="modal-actions">
+          <button
+            type="button"
+            className="btn-danger-action"
+            onClick={() => onDelete(selectedItem?.id)}
+          >
+            <Trash2 size={16} style={{ display: 'inline', marginRight: '6px' }} />
+            Delete Permanently
+          </button>
+          <button type="button" className="btn-cancel-modal" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );

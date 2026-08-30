@@ -2,32 +2,56 @@ import React from 'react';
 import { HardDriveUpload } from 'lucide-react';
 
 export default function RightMembersPanel({
+  user,
   activeRoomDetails,
   onOpenContributeModal,
   onMemberMouseEnter,
   onMemberMouseLeave,
 }) {
+  const currentUserMember = activeRoomDetails?.members?.find(
+    (m) => m.user_id === user?.id || m.email === user?.email
+  );
+
+  const myQuota = currentUserMember?.contributed_storage_gb || 0;
+  const totalPool = activeRoomDetails?.total_allocated_gb || 0;
+
   return (
     <div className="right-members-panel">
       {activeRoomDetails ? (
         <>
-          {/* Storage Pool Card (Top of Right Panel) */}
+          {/* Storage Pool Widget */}
           <div className="pool-widget-right">
             <div className="pool-header">
-              <span>Shared Pool</span>
-              <strong>{activeRoomDetails.total_allocated_gb || 0} GB Allocated</strong>
+              <span>Your Contribution</span>
+              <strong style={{ color: myQuota > 0 ? 'var(--accent-green)' : 'var(--text-muted)' }}>
+                {myQuota} GB
+              </strong>
             </div>
+
             <div className="progress-bar-bg">
               <div
                 className="progress-bar-fill"
                 style={{
-                  width: `${Math.min(
-                    100,
-                    ((activeRoomDetails.total_allocated_gb || 0) / 50) * 100
-                  )}%`,
+                  width: `${
+                    totalPool > 0 ? Math.min(100, (myQuota / totalPool) * 100) : 0
+                  }%`,
                 }}
               />
             </div>
+
+            <div
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
+                marginBottom: '0.75rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span>Total Room Pool:</span>
+              <strong style={{ color: 'var(--text-primary)' }}>{totalPool} GB</strong>
+            </div>
+
             <button className="btn-contribute" onClick={onOpenContributeModal}>
               <HardDriveUpload size={15} /> Contribute Storage
             </button>
@@ -66,9 +90,7 @@ export default function RightMembersPanel({
                     )}
                   </div>
                   <div className="member-subtext">
-                    {m.contributed_storage_gb > 0
-                      ? `${m.contributed_storage_gb} GB Pooled`
-                      : 'Viewer (0 GB)'}
+                    {m.contributed_storage_gb || 0} GB
                   </div>
                 </div>
               </div>
