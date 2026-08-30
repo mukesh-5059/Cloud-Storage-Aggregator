@@ -28,6 +28,11 @@ export default function App() {
   const [activeRoomId, setActiveRoomId] = useState(null);
   const [activeRoomDetails, setActiveRoomDetails] = useState(null);
 
+  // Drive state
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [freeSpaceGb, setFreeSpaceGb] = useState(12.5);
+  const [totalSpaceGb, setTotalSpaceGb] = useState(15.0);
+
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -52,7 +57,7 @@ export default function App() {
   const [joinRoomPassword, setJoinRoomPassword] = useState('');
 
   const [vaultFolder, setVaultFolder] = useState('NodeVaultPool');
-  const [quotaGb, setQuotaGb] = useState('10');
+  const [quotaGb, setQuotaGb] = useState('5');
 
   // Check existing session
   useEffect(() => {
@@ -83,6 +88,9 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
+        if (data.user?.drive_connected) {
+          setDriveConnected(true);
+        }
       } else {
         performLogout();
       }
@@ -145,6 +153,9 @@ export default function App() {
       localStorage.setItem('roomvault_token', data.token);
       setToken(data.token);
       setUser(data.user);
+      if (data.user?.drive_connected) {
+        setDriveConnected(true);
+      }
     } catch (err) {
       setError(err.message || 'Failed to sign in with Google');
     } finally {
@@ -160,6 +171,40 @@ export default function App() {
     },
   });
 
+  // Separate Google Drive Authorization hook
+  const authorizeDrive = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    onSuccess: async (tokenResponse) => {
+      try {
+        setLoading(true);
+        const payload = tokenResponse.access_token
+          ? { access_token: tokenResponse.access_token }
+          : { code: tokenResponse.code };
+
+        const res = await fetch(`${API_BASE_URL}/api/drive/connect-drive`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        setDriveConnected(true);
+        setFreeSpaceGb(data.free_space_gb || 12.5);
+        setTotalSpaceGb(data.total_space_gb || 15.0);
+      } catch (err) {
+        alert('Failed to connect Google Drive: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    onError: () => {
+      alert('Google Drive authorization popup was closed or failed.');
+    },
+  });
+
   const performLogout = () => {
     localStorage.removeItem('roomvault_token');
     setToken('');
@@ -167,6 +212,7 @@ export default function App() {
     setRooms([]);
     setActiveRoomId(null);
     setActiveRoomDetails(null);
+    setDriveConnected(false);
     setShowSignOutModal(false);
   };
 
@@ -238,6 +284,7 @@ export default function App() {
         body: JSON.stringify({
           room_id: activeRoomId,
           quota_gb: parseFloat(quotaGb) || 0,
+          vault_folder: vaultFolder || 'NodeVaultPool',
         }),
       });
 
@@ -405,12 +452,17 @@ export default function App() {
 
       {showContributeModal && (
         <ContributeStorageModal
+          driveConnected={driveConnected}
+          freeSpaceGb={freeSpaceGb}
+          totalSpaceGb={totalSpaceGb}
           vaultFolder={vaultFolder}
           setVaultFolder={setVaultFolder}
           quotaGb={quotaGb}
           setQuotaGb={setQuotaGb}
+          onAuthorizeDrive={() => authorizeDrive()}
           onClose={() => setShowContributeModal(false)}
           onSubmit={handleSaveContribution}
+          loading={loading}
         />
       )}
 

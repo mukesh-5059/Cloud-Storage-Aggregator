@@ -13,7 +13,14 @@ if not uri:
 
 try:
     client = MongoClient(uri)
-    db = client.get_default_database() or client["nodevault"]
+    try:
+        db = client.get_default_database()
+    except Exception:
+        db = None
+
+    if db is None:
+        db = client["nodevault"]
+
     db_name = db.name
     client.drop_database(db_name)
     print(f"🔥 Demolished entire database '{db_name}' from MongoDB Atlas!")

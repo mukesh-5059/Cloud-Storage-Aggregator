@@ -14,7 +14,13 @@ if not uri:
 
 try:
     client = MongoClient(uri)
-    db = client.get_default_database() or client["nodevault"]
+    try:
+        db = client.get_default_database()
+    except Exception:
+        db = None
+
+    if db is None:
+        db = client["nodevault"]
 
     collections = ["users", "rooms", "nodes", "files", "room_members"]
     for col in collections:

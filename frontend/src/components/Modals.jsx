@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, LogOut, Trash2, Move, Download, Folder } from 'lucide-react';
+import { X, LogOut, Trash2, Move, Download, Folder, ShieldCheck, HardDrive, Lock } from 'lucide-react';
 
 export function SignOutModal({ onClose, onConfirm }) {
   return (
@@ -138,61 +138,113 @@ export function JoinRoomModal({
 }
 
 export function ContributeStorageModal({
+  driveConnected,
+  freeSpaceGb,
+  totalSpaceGb,
   vaultFolder,
   setVaultFolder,
   quotaGb,
   setQuotaGb,
+  onAuthorizeDrive,
   onClose,
   onSubmit,
+  loading,
 }) {
   return (
     <div className="modal-overlay">
       <div className="modal-card">
-        <h2 className="modal-title">Contribute Storage to Pool</h2>
-        <p className="modal-subtitle">Allocate a folder on your device to store shared room files.</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 className="modal-title">Contribute Storage to Pool</h2>
+          <X size={20} style={{ cursor: 'pointer' }} onClick={onClose} />
+        </div>
 
-        <form onSubmit={onSubmit}>
-          <div className="form-group">
-            <label className="form-label">1. Select Allocated Vault Folder</label>
-            <div className="folder-pick-row">
-              <input
-                type="text"
-                className="form-input"
-                value={vaultFolder}
-                onChange={(e) => setVaultFolder(e.target.value)}
-              />
-              <button type="button" className="btn-pick">
-                Pick Folder
+        {!driveConnected ? (
+          <div>
+            <p className="modal-subtitle">
+              Grant RoomVault permission to access your Google Drive to pool storage for this room.
+            </p>
+
+            <div
+              style={{
+                padding: '1rem',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                borderRadius: '8px',
+                marginBottom: '1.5rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-blue)', fontWeight: 600 }}>
+                <Lock size={18} /> Scoped Access Security
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.4rem' }}>
+                RoomVault only requests access to create and manage its dedicated <code>NodeVaultPool</code> folder. We cannot view or touch your personal Drive files.
+              </p>
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn-save-contribution"
+                onClick={onAuthorizeDrive}
+                disabled={loading}
+              >
+                <ShieldCheck size={18} style={{ display: 'inline', marginRight: '6px' }} />
+                {loading ? 'Connecting Google Drive...' : 'Authorize Google Drive Access'}
+              </button>
+              <button type="button" className="btn-cancel-modal" onClick={onClose}>
+                Cancel
               </button>
             </div>
           </div>
+        ) : (
+          <form onSubmit={onSubmit}>
+            <p className="modal-subtitle">
+              Google Drive Connected! Select a folder and quota to pool into the room.
+            </p>
 
-          <div className="form-group">
-            <label className="form-label">2. Allocated Storage Quota (GB)</label>
-            <input
-              type="number"
-              className="form-input"
-              value={quotaGb}
-              onChange={(e) => setQuotaGb(e.target.value)}
-              min="1"
-              max="100"
-              required
-            />
-          </div>
+            <div className="form-group">
+              <label className="form-label">1. Select Vault Folder in Google Drive</label>
+              <div className="folder-pick-row">
+                <input
+                  type="text"
+                  className="form-input"
+                  value={vaultFolder}
+                  onChange={(e) => setVaultFolder(e.target.value)}
+                  required
+                />
+                <button type="button" className="btn-pick">
+                  Pick Folder
+                </button>
+              </div>
+            </div>
 
-          <div className="space-estimate-box">
-            Estimated Free Disk Space: <span>{quotaGb} GB</span> / {quotaGb} GB
-          </div>
+            <div className="form-group">
+              <label className="form-label">2. Allocated Storage Quota (GB)</label>
+              <input
+                type="number"
+                className="form-input"
+                value={quotaGb}
+                onChange={(e) => setQuotaGb(e.target.value)}
+                min="1"
+                max={Math.floor(freeSpaceGb || 15)}
+                required
+              />
+            </div>
 
-          <div className="modal-actions">
-            <button type="submit" className="btn-save-contribution">
-              Save Storage Contribution
-            </button>
-            <button type="button" className="btn-cancel-modal" onClick={onClose}>
-              Cancel
-            </button>
-          </div>
-        </form>
+            <div className="space-estimate-box">
+              Free Google Drive Space: <span>{freeSpaceGb || 12.5} GB</span> / {totalSpaceGb || 15.0} GB
+            </div>
+
+            <div className="modal-actions">
+              <button type="submit" className="btn-save-contribution">
+                Save Storage Contribution
+              </button>
+              <button type="button" className="btn-cancel-modal" onClick={onClose}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
