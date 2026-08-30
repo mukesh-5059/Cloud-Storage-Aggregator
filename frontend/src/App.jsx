@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
-import { HardDrive, LogOut, ShieldCheck, UserCheck, AlertCircle } from 'lucide-react';
+
+import LoginScreen from './components/LoginScreen';
+import ServerRail from './components/ServerRail';
+import MainWorkspace from './components/MainWorkspace';
+import RightMembersPanel from './components/RightMembersPanel';
+import DiscordProfilePopout from './components/DiscordProfilePopout';
+import {
+  SignOutModal,
+  CreateRoomModal,
+  JoinRoomModal,
+  ContributeStorageModal
+} from './components/Modals';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -10,29 +21,98 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Check existing session on load
+  // Rooms & Workspace state
+  const [rooms, setRooms] = useState([]);
+  const [activeRoomId, setActiveRoomId] = useState(null);
+  const [activeRoomDetails, setActiveRoomDetails] = useState(null);
+
+  // Modals state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showContributeModal, setShowContributeModal] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
+
+  // Hovered member state for expanded Discord profile popover card
+  const [activeProfileCard, setActiveProfileCard] = useState(null);
+  const [profileCardTop, setProfileCardTop] = useState(100);
+  const popoutTimeoutRef = useRef(null);
+
+  // Form states
+  const [createRoomName, setCreateRoomName] = useState('');
+  const [createRoomPassword, setCreateRoomPassword] = useState('');
+
+  const [joinRoomId, setJoinRoomId] = useState('');
+  const [joinRoomPassword, setJoinRoomPassword] = useState('');
+
+  const [vaultFolder, setVaultFolder] = useState('NodeVaultPool');
+  const [quotaGb, setQuotaGb] = useState('10');
+
+  // Check existing session
   useEffect(() => {
     if (token) {
       fetchCurrentUser(token);
     }
   }, [token]);
 
+  // Fetch rooms whenever user is authenticated
+  useEffect(() => {
+    if (token && user) {
+      fetchMyRooms();
+    }
+  }, [token, user]);
+
+  // Fetch details for active room
+  useEffect(() => {
+    if (activeRoomId && token) {
+      fetchRoomDetails(activeRoomId);
+    }
+  }, [activeRoomId]);
+
   const fetchCurrentUser = async (authToken) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
       } else {
-        // Token invalid or expired
-        logout();
+        performLogout();
       }
     } catch (err) {
       console.error('Session check failed:', err);
+    }
+  };
+
+  const fetchMyRooms = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/rooms/my-rooms`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRooms(data.rooms || []);
+        if (data.rooms.length > 0 && !activeRoomId) {
+          setActiveRoomId(data.rooms[0].room_id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch rooms:', err);
+    }
+  };
+
+  const fetchRoomDetails = async (roomId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveRoomDetails(data.room);
+      }
+    } catch (err) {
+      console.error('Failed to fetch room details:', err);
     }
   };
 
@@ -41,38 +121,26 @@ export default function App() {
     setError('');
 
     try {
-      const payload = tokenResponse.access_token 
+      const payload = tokenResponse.access_token
         ? { access_token: tokenResponse.access_token }
         : { code: tokenResponse.code };
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
-
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.detail || 'Authentication failed');
       }
 
-      // Save token and user details
       localStorage.setItem('roomvault_token', data.token);
       setToken(data.token);
       setUser(data.user);
     } catch (err) {
-      if (err.name === 'AbortError') {
-        setError('Backend request timed out. Please verify Uvicorn server is running.');
-      } else {
-        setError(err.message || 'Failed to sign in with Google');
-      }
+      setError(err.message || 'Failed to sign in with Google');
     } finally {
       setLoading(false);
     }
@@ -82,101 +150,219 @@ export default function App() {
     onSuccess: handleGoogleSuccess,
     onError: (err) => {
       console.error('Google Auth Error:', err);
-      setError('Google Sign-In popup was closed or failed.');
+      setError('Google Sign-In popup failed.');
     },
   });
 
-  const logout = () => {
+  const performLogout = () => {
     localStorage.removeItem('roomvault_token');
     setToken('');
     setUser(null);
+    setRooms([]);
+    setActiveRoomId(null);
+    setActiveRoomDetails(null);
+    setShowSignOutModal(false);
   };
 
+  const handleCreateRoom = async (e) => {
+    e.preventDefault();
+    if (!createRoomName || !createRoomPassword) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/rooms/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: createRoomName, password: createRoomPassword }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to create room');
+
+      setShowCreateModal(false);
+      setCreateRoomName('');
+      setCreateRoomPassword('');
+      await fetchMyRooms();
+      setActiveRoomId(data.room.room_id);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleJoinRoom = async (e) => {
+    e.preventDefault();
+    if (!joinRoomId || !joinRoomPassword) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/rooms/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ room_id: joinRoomId, password: joinRoomPassword }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to join room');
+
+      setShowJoinModal(false);
+      setJoinRoomId('');
+      setJoinRoomPassword('');
+      await fetchMyRooms();
+      setActiveRoomId(data.room.room_id);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleSaveContribution = async (e) => {
+    e.preventDefault();
+    if (!activeRoomId) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/rooms/contribute-storage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          room_id: activeRoomId,
+          quota_gb: parseFloat(quotaGb) || 0,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'Failed to contribute storage');
+      }
+
+      setShowContributeModal(false);
+      fetchRoomDetails(activeRoomId);
+      fetchMyRooms();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const copyRoomId = () => {
+    if (!activeRoomDetails) return;
+    navigator.clipboard.writeText(activeRoomDetails.room_id);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
+  const handleMemberMouseEnter = (e, member) => {
+    if (popoutTimeoutRef.current) {
+      clearTimeout(popoutTimeoutRef.current);
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const calculatedTop = Math.max(16, Math.min(rect.top - 10, window.innerHeight - 320));
+    setProfileCardTop(calculatedTop);
+    setActiveProfileCard(member);
+  };
+
+  const handleMemberMouseLeave = () => {
+    popoutTimeoutRef.current = setTimeout(() => {
+      setActiveProfileCard(null);
+    }, 200);
+  };
+
+  const handlePopoutMouseEnter = () => {
+    if (popoutTimeoutRef.current) {
+      clearTimeout(popoutTimeoutRef.current);
+    }
+  };
+
+  const handlePopoutMouseLeave = () => {
+    popoutTimeoutRef.current = setTimeout(() => {
+      setActiveProfileCard(null);
+    }, 200);
+  };
+
+  // If user is not logged in, render Google Login screen
+  if (!user) {
+    return <LoginScreen onLogin={loginWithGoogle} loading={loading} error={error} />;
+  }
+
   return (
-    <div className="login-container">
-      {user ? (
-        <div className="user-profile-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            {user.picture ? (
-              <img src={user.picture} alt={user.name} className="avatar-img" />
-            ) : (
-              <div
-                className="avatar-img"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: '#1e293b',
-                  fontSize: '1.5rem',
-                }}
-              >
-                👤
-              </div>
-            )}
-            <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{user.name}</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{user.email}</p>
-              <div className="badge-pill">
-                Storage Contributed: {user.storage_contributed ? 'Yes' : 'None (Viewer)'}
-              </div>
-            </div>
-          </div>
+    <div className="discord-layout">
+      {/* Leftmost Server/Room Icon Rail */}
+      <ServerRail
+        user={user}
+        rooms={rooms}
+        activeRoomId={activeRoomId}
+        onSelectRoom={(id) => setActiveRoomId(id)}
+        onOpenCreateModal={() => setShowCreateModal(true)}
+        onOpenJoinModal={() => setShowJoinModal(true)}
+        onOpenSignOutModal={() => setShowSignOutModal(true)}
+      />
 
-          <div
-            style={{
-              marginTop: '1.5rem',
-              padding: '1rem',
-              backgroundColor: 'var(--bg-input)',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-green)', fontWeight: 500 }}>
-              <ShieldCheck size={18} /> Basic Authentication Active
-            </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-              Your email identity is authenticated without Google Drive permissions. Storage contribution can be granted inside rooms.
-            </p>
-          </div>
+      {/* Center Main Workspace */}
+      <MainWorkspace
+        activeRoomDetails={activeRoomDetails}
+        copiedId={copiedId}
+        onCopyRoomId={copyRoomId}
+      />
 
-          <button className="btn-logout" onClick={logout}>
-            <LogOut size={16} style={{ display: 'inline', marginRight: '6px' }} />
-            Sign Out
-          </button>
-        </div>
-      ) : (
-        <div className="login-card">
-          <div className="brand-badge">
-            <HardDrive size={16} /> RoomVault Storage Pool
-          </div>
-          <h1 className="login-title">Welcome to RoomVault</h1>
-          <p className="login-subtitle">
-            Sign in with your Google account to access shared drive storage rooms.
-          </p>
+      {/* Rightmost Sidebar: Storage Pool + Members List */}
+      <RightMembersPanel
+        activeRoomDetails={activeRoomDetails}
+        onOpenContributeModal={() => setShowContributeModal(true)}
+        onMemberMouseEnter={handleMemberMouseEnter}
+        onMemberMouseLeave={handleMemberMouseLeave}
+      />
 
-          <button
-            className="btn-google-login"
-            onClick={() => loginWithGoogle()}
-            disabled={loading}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path
-                fill="#ffffff"
-                d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032 s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2 C7.021,2,2.545,6.477,2.545,12s4.476,10,10,10c5.773,0,9.584-4.062,9.584-9.752c0-0.697-0.076-1.371-0.211-2.009H12.545z"
-              />
-            </svg>
-            {loading ? 'Authenticating...' : 'Sign in with Google'}
-          </button>
+      {/* Discord Profile Hover Card (Persists on Hover over Card) */}
+      <DiscordProfilePopout
+        member={activeProfileCard}
+        top={profileCardTop}
+        onMouseEnter={handlePopoutMouseEnter}
+        onMouseLeave={handlePopoutMouseLeave}
+      />
 
-          {error && (
-            <div className="error-banner">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-                <AlertCircle size={16} /> Authentication Error
-              </div>
-              <div style={{ marginTop: '0.25rem' }}>{error}</div>
-            </div>
-          )}
-        </div>
+      {/* Dialog Modals */}
+      {showSignOutModal && (
+        <SignOutModal
+          onClose={() => setShowSignOutModal(false)}
+          onConfirm={performLogout}
+        />
+      )}
+
+      {showCreateModal && (
+        <CreateRoomModal
+          name={createRoomName}
+          password={createRoomPassword}
+          setName={setCreateRoomName}
+          setPassword={setCreateRoomPassword}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreateRoom}
+        />
+      )}
+
+      {showJoinModal && (
+        <JoinRoomModal
+          roomId={joinRoomId}
+          password={joinRoomPassword}
+          setRoomId={setJoinRoomId}
+          setPassword={setJoinRoomPassword}
+          onClose={() => setShowJoinModal(false)}
+          onSubmit={handleJoinRoom}
+        />
+      )}
+
+      {showContributeModal && (
+        <ContributeStorageModal
+          vaultFolder={vaultFolder}
+          setVaultFolder={setVaultFolder}
+          quotaGb={quotaGb}
+          setQuotaGb={setQuotaGb}
+          onClose={() => setShowContributeModal(false)}
+          onSubmit={handleSaveContribution}
+        />
       )}
     </div>
   );
