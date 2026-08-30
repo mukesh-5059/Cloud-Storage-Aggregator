@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pymongo
+dnspython
+pydantic
+python-dotenv
+python-multipart
+httpx
+pyjwt
+
