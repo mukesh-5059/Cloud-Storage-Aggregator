@@ -27,7 +27,7 @@ def delete_my_account(
     if token_to_revoke:
         try:
             revoke_url = f"https://oauth2.googleapis.com/revoke?token={token_to_revoke}"
-            requests.post(revoke_url, headers={"Content-Type": "application/x-www-form-urlencoded"})
+            requests.post(revoke_url, headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=5)
             logger.info(f"Revoked Google token for User ID {current_user.id} prior to account deletion")
         except Exception as e:
             logger.warning(f"Could not revoke Google token during account deletion: {e}")
@@ -39,16 +39,21 @@ def delete_my_account(
         remaining_members = [m for m in room.members if m.id != current_user.id]
         if remaining_members:
             next_owner = remaining_members[0]
-            room.owner_id = next_owner.id
+            room.owner = next_owner
             logger.info(f"Transferred ownership of Room ID {room.id} ('{room.name}') to User ID {next_owner.id}")
         else:
             logger.info(f"Killed Room ID {room.id} ('{room.name}') as User ID {current_user.id} was sole member")
             db.delete(room)
 
-    # 3. Remove user from all room memberships
-    current_user.joined_rooms.clear()
+    # 3. Clean up room memberships
+    for room in list(current_user.joined_rooms):
+        if current_user in room.members:
+            room.members.remove(current_user)
 
-    # 4. Delete user record
+    # 4. Flush transfers and member cleanups before deleting user
+    db.flush()
+
+    # 5. Delete user record
     db.delete(current_user)
     db.commit()
 

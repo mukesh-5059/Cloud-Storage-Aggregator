@@ -5,12 +5,37 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 from routers import auth, rooms, users
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
+class CustomColoredFormatter(logging.Formatter):
+    GREY = "\x1b[38;20m"
+    GREEN = "\x1b[32;1m"
+    CYAN = "\x1b[36;1m"
+    YELLOW = "\x1b[33;1m"
+    RED = "\x1b[31;1m"
+    RESET = "\x1b[0m"
+    DIM = "\x1b[90m"
+
+    def format(self, record):
+        color = self.GREEN if record.levelno == logging.INFO else (
+            self.YELLOW if record.levelno == logging.WARNING else (
+                self.RED if record.levelno >= logging.ERROR else self.GREY
+            )
+        )
+        time_str = f"{self.DIM}{self.formatTime(record, '%Y-%m-%d %H:%M:%S')}{self.RESET}"
+        level_str = f"{color}[{record.levelname}]{self.RESET}"
+        name_str = f"{self.CYAN}{record.name}{self.RESET}"
+        return f"{time_str} {level_str} {name_str}: {record.getMessage()}"
+
+handler = logging.StreamHandler()
+handler.setFormatter(CustomColoredFormatter())
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.handlers = [handler]
+
 logger = logging.getLogger("main")
+
+# Disable Uvicorn's default access logger to avoid redundant log lines
+logging.getLogger("uvicorn.access").disabled = True
 
 Base.metadata.create_all(bind=engine)
 
@@ -33,7 +58,18 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     duration_ms = (time.time() - start_time) * 1000
-    logger.info(f"HTTP {request.method} {request.url.path} - Status {response.status_code} - Completed in {duration_ms:.1f}ms")
+
+    status_code = response.status_code
+    if status_code < 300:
+        status_str = f"\x1b[32;1m{status_code}\x1b[0m"
+    elif status_code < 400:
+        status_str = f"\x1b[36;1m{status_code}\x1b[0m"
+    elif status_code < 500:
+        status_str = f"\x1b[33;1m{status_code}\x1b[0m"
+    else:
+        status_str = f"\x1b[31;1m{status_code}\x1b[0m"
+
+    logger.info(f"HTTP {request.method} {request.url.path} - Status {status_str} - Completed in {duration_ms:.1f}ms")
     return response
 
 app.include_router(auth.router)
