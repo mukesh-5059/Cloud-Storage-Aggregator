@@ -96,6 +96,14 @@ class MoveFileRequest(BaseModel):
     target_parent_id: Optional[str] = None
 
 
+class UploadFileRequest(BaseModel):
+    room_id: str
+    name: str
+    size_bytes: Optional[int] = 1048576
+    size_str: Optional[str] = "1.0 MB"
+    parent_id: Optional[str] = None
+
+
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -257,6 +265,10 @@ async def google_login(payload: GoogleAuthRequest):
     }
     auth_token = create_access_token(jwt_payload)
 
+    user_doc = users_collection.find_one({"_id": ObjectId(user_id)}) or {}
+    avail_bytes = user_doc.get("drive_available_bytes", 0)
+    total_bytes = user_doc.get("drive_total_space_bytes", 0)
+
     return {
         "token": auth_token,
         "user": {
@@ -264,7 +276,9 @@ async def google_login(payload: GoogleAuthRequest):
             "email": email,
             "name": name,
             "picture": picture,
-            "drive_connected": has_drive_token
+            "drive_connected": has_drive_token,
+            "drive_available_gb": round(avail_bytes / (1024 ** 3), 1),
+            "drive_total_gb": round(total_bytes / (1024 ** 3), 1)
         }
     }
 
@@ -532,6 +546,25 @@ def get_my_rooms(user: dict = Depends(get_current_user_doc)):
     return {"rooms": my_rooms}
 
 
+@app.get("/api/rooms/{room_id}/folders")
+def get_room_folders(room_id: str, user: dict = Depends(get_current_user_doc)):
+    room_id = room_id.upper()
+    membership = room_members_collection.find_one({"room_id": room_id, "user_id": str(user["_id"])})
+    if not membership:
+        raise HTTPException(status_code=403, detail="You are not a member of this room")
+
+    db_folders = list(files_collection.find({"room_id": room_id, "is_folder": True}))
+    folder_list = []
+    for f in db_folders:
+        folder_list.append({
+            "id": str(f["_id"]),
+            "name": f.get("name", "Untitled Folder"),
+            "parent_id": f.get("parent_id")
+        })
+
+    return {"folders": folder_list}
+
+
 @app.get("/api/rooms/{room_id}")
 def get_room_details(room_id: str, parent_id: Optional[str] = None, user: dict = Depends(get_current_user_doc)):
     room_id = room_id.upper()
@@ -579,24 +612,29 @@ def get_room_details(room_id: str, parent_id: Optional[str] = None, user: dict =
     file_list = []
 
     for f in db_files:
+        owner_n = f.get("owner_name", "me")
+        provider_n = f.get("provider_name") or owner_n
         file_list.append({
             "id": str(f["_id"]),
             "name": f.get("name", "Untitled"),
             "is_folder": f.get("is_folder", False),
-            "owner": f.get("owner_name", "me"),
-            "owner_initials": f.get("owner_name", "MK")[0:2].upper(),
+            "owner": owner_n,
+            "owner_initials": owner_n[0:2].upper(),
+            "provider_name": provider_n,
+            "stored_at": f"Google Drive Pool ({provider_n}'s NodeVaultPool)",
             "date_modified": f.get("date_modified", datetime.now().strftime("%b %d, %Y")),
-            "size": f.get("size_str", "—") if f.get("is_folder") else f.get("size_str", "1.2 MB"),
+            "size": f.get("size_str", "—") if f.get("is_folder") else f.get("size_str", "1.0 MB"),
+            "size_bytes": f.get("size_bytes", 1048576),
             "parent_id": f.get("parent_id")
         })
 
     if not file_list and not parent_id:
         file_list = [
-            {"id": "demo_1", "name": "android_studio", "is_folder": True, "owner": "me", "owner_initials": "MK", "date_modified": "Dec 3, 2025", "size": "—", "parent_id": None},
-            {"id": "demo_2", "name": "customizations", "is_folder": True, "owner": "me", "owner_initials": "MK", "date_modified": "Dec 3, 2025", "size": "—", "parent_id": None},
-            {"id": "demo_3", "name": "Downloads", "is_folder": True, "owner": "me", "owner_initials": "MK", "date_modified": "Dec 3, 2025", "size": "—", "parent_id": None},
-            {"id": "demo_4", "name": "Games", "is_folder": True, "owner": "me", "owner_initials": "MK", "date_modified": "Dec 3, 2025", "size": "—", "parent_id": None},
-            {"id": "demo_5", "name": "Project Kavach Proposal.pdf", "is_folder": False, "owner": "me", "owner_initials": "MK", "date_modified": "Jun 27, 2025", "size": "4 KB", "parent_id": None},
+            {"id": "demo_1", "name": "android_studio", "is_folder": True, "owner": "me", "owner_initials": "MK", "provider_name": "me", "stored_at": "Google Drive Pool (me's NodeVaultPool)", "date_modified": "Dec 3, 2025", "size": "—", "size_bytes": 0, "parent_id": None},
+            {"id": "demo_2", "name": "customizations", "is_folder": True, "owner": "me", "owner_initials": "MK", "provider_name": "me", "stored_at": "Google Drive Pool (me's NodeVaultPool)", "date_modified": "Dec 3, 2025", "size": "—", "size_bytes": 0, "parent_id": None},
+            {"id": "demo_3", "name": "Downloads", "is_folder": True, "owner": "me", "owner_initials": "MK", "provider_name": "me", "stored_at": "Google Drive Pool (me's NodeVaultPool)", "date_modified": "Dec 3, 2025", "size": "—", "size_bytes": 0, "parent_id": None},
+            {"id": "demo_4", "name": "Games", "is_folder": True, "owner": "me", "owner_initials": "MK", "provider_name": "me", "stored_at": "Google Drive Pool (me's NodeVaultPool)", "date_modified": "Dec 3, 2025", "size": "—", "size_bytes": 0, "parent_id": None},
+            {"id": "demo_5", "name": "Project Kavach Proposal.pdf", "is_folder": False, "owner": "me", "owner_initials": "MK", "provider_name": "me", "stored_at": "Google Drive Pool (me's NodeVaultPool)", "date_modified": "Jun 27, 2025", "size": "4 KB", "size_bytes": 4096, "parent_id": None},
         ]
 
     used_storage_gb = 4.2
@@ -646,6 +684,7 @@ def create_folder(payload: CreateFolderRequest, user: dict = Depends(get_current
         "is_folder": True,
         "owner_id": str(user["_id"]),
         "owner_name": user.get("name", "me"),
+        "provider_name": user.get("name", "me"),
         "parent_id": payload.parent_id,
         "date_modified": datetime.now().strftime("%b %d, %Y"),
         "size_bytes": 0,
@@ -669,6 +708,25 @@ def move_file(payload: MoveFileRequest, user: dict = Depends(get_current_user_do
 
     files_collection.update_one(query, {"$set": {"parent_id": payload.target_parent_id}})
     return {"message": "File moved successfully"}
+
+
+@app.post("/api/files/upload")
+def upload_file(payload: UploadFileRequest, user: dict = Depends(get_current_user_doc)):
+    file_doc = {
+        "room_id": payload.room_id.upper(),
+        "name": payload.name.strip(),
+        "is_folder": False,
+        "owner_id": str(user["_id"]),
+        "owner_name": user.get("name", "me"),
+        "provider_name": user.get("name", "me"),
+        "parent_id": payload.parent_id,
+        "date_modified": datetime.now().strftime("%b %d, %Y"),
+        "size_bytes": payload.size_bytes or 1048576,
+        "size_str": payload.size_str or "1.0 MB",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    res = files_collection.insert_one(file_doc)
+    return {"message": "File uploaded successfully", "file_id": str(res.inserted_id)}
 
 
 @app.delete("/api/files/{file_id}")

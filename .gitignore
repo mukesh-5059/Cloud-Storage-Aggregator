@@ -1,5 +1,13 @@
+# Environment & Credentials
+.env
+client_with_gdrive.json
+
+# SQLite Database
+app.db
+*.db
+
+# Python & Node Dependencies
+.venv/
+__pycache__/
 node_modules/
 dist/
-.venv/
-.env
-.vscode/

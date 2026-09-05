@@ -11,6 +11,9 @@ import {
   CreateRoomModal,
   JoinRoomModal,
   ContributeStorageModal,
+  CreateFolderModal,
+  UploadFileModal,
+  FileDetailsModal,
   MoveFileModal,
   DeleteFileModal
 } from './components/Modals';
@@ -27,6 +30,11 @@ export default function App() {
   const [rooms, setRooms] = useState([]);
   const [activeRoomId, setActiveRoomId] = useState(null);
   const [activeRoomDetails, setActiveRoomDetails] = useState(null);
+  const [allRoomFolders, setAllRoomFolders] = useState([]);
+
+  // File system folder navigation state
+  const [currentFolderId, setCurrentFolderId] = useState(null);
+  const [folderPath, setFolderPath] = useState([]);
 
   // Drive state
   const [driveConnected, setDriveConnected] = useState(false);
@@ -38,6 +46,10 @@ export default function App() {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showContributeModal, setShowContributeModal] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [showUploadFileModal, setShowUploadFileModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedDetailsItem, setSelectedDetailsItem] = useState(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedFileTarget, setSelectedFileTarget] = useState(null);
@@ -73,12 +85,12 @@ export default function App() {
     }
   }, [token, user]);
 
-  // Fetch details for active room
+  // Fetch details for active room and current folder
   useEffect(() => {
     if (activeRoomId && token) {
-      fetchRoomDetails(activeRoomId);
+      fetchRoomDetails(activeRoomId, currentFolderId);
     }
-  }, [activeRoomId]);
+  }, [activeRoomId, currentFolderId]);
 
   const fetchCurrentUser = async (authToken) => {
     try {
@@ -90,6 +102,12 @@ export default function App() {
         setUser(data.user);
         if (data.user?.drive_connected) {
           setDriveConnected(true);
+          if (data.user.drive_available_gb !== undefined) {
+            setFreeSpaceGb(data.user.drive_available_gb);
+          }
+          if (data.user.drive_total_gb !== undefined) {
+            setTotalSpaceGb(data.user.drive_total_gb);
+          }
         }
       } else {
         performLogout();
@@ -109,6 +127,8 @@ export default function App() {
         setRooms(data.rooms || []);
         if (data.rooms.length > 0 && !activeRoomId) {
           setActiveRoomId(data.rooms[0].room_id);
+          setCurrentFolderId(null);
+          setFolderPath([]);
         }
       }
     } catch (err) {
@@ -116,9 +136,10 @@ export default function App() {
     }
   };
 
-  const fetchRoomDetails = async (roomId) => {
+  const fetchRoomDetails = async (roomId, folderId = null) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}`, {
+      const query = folderId ? `?parent_id=${folderId}` : '';
+      const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}${query}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -128,6 +149,24 @@ export default function App() {
     } catch (err) {
       console.error('Failed to fetch room details:', err);
     }
+  };
+
+  const handleOpenMoveModal = async (item) => {
+    setSelectedFileTarget(item);
+    if (activeRoomId && token) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/rooms/${activeRoomId}/folders`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAllRoomFolders(data.folders || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch room folders:', err);
+      }
+    }
+    setShowMoveModal(true);
   };
 
   const handleGoogleSuccess = async (tokenResponse) => {
@@ -155,6 +194,8 @@ export default function App() {
       setUser(data.user);
       if (data.user?.drive_connected) {
         setDriveConnected(true);
+        if (data.user.drive_available_gb !== undefined) setFreeSpaceGb(data.user.drive_available_gb);
+        if (data.user.drive_total_gb !== undefined) setTotalSpaceGb(data.user.drive_total_gb);
       }
     } catch (err) {
       setError(err.message || 'Failed to sign in with Google');
@@ -171,7 +212,6 @@ export default function App() {
     },
   });
 
-  // Separate Google Drive Authorization hook
   const authorizeDrive = useGoogleLogin({
     scope: 'https://www.googleapis.com/auth/drive.file',
     onSuccess: async (tokenResponse) => {
@@ -192,8 +232,8 @@ export default function App() {
 
         const data = await res.json();
         setDriveConnected(true);
-        setFreeSpaceGb(data.free_space_gb || 12.5);
-        setTotalSpaceGb(data.total_space_gb || 15.0);
+        setFreeSpaceGb(data.free_space_gb || 4961.0);
+        setTotalSpaceGb(data.total_space_gb || 5000.0);
       } catch (err) {
         alert('Failed to connect Google Drive: ' + err.message);
       } finally {
@@ -213,6 +253,8 @@ export default function App() {
     setActiveRoomId(null);
     setActiveRoomDetails(null);
     setDriveConnected(false);
+    setCurrentFolderId(null);
+    setFolderPath([]);
     setShowSignOutModal(false);
   };
 
@@ -238,6 +280,8 @@ export default function App() {
       setCreateRoomPassword('');
       await fetchMyRooms();
       setActiveRoomId(data.room.room_id);
+      setCurrentFolderId(null);
+      setFolderPath([]);
     } catch (err) {
       alert(err.message);
     }
@@ -265,6 +309,8 @@ export default function App() {
       setJoinRoomPassword('');
       await fetchMyRooms();
       setActiveRoomId(data.room.room_id);
+      setCurrentFolderId(null);
+      setFolderPath([]);
     } catch (err) {
       alert(err.message);
     }
@@ -294,8 +340,67 @@ export default function App() {
       }
 
       setShowContributeModal(false);
-      fetchRoomDetails(activeRoomId);
+      fetchRoomDetails(activeRoomId, currentFolderId);
       fetchMyRooms();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleCreateFolder = async (folderName) => {
+    if (!activeRoomId) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/files/create-folder`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          room_id: activeRoomId,
+          name: folderName,
+          parent_id: currentFolderId,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'Failed to create folder');
+      }
+
+      setShowCreateFolderModal(false);
+      fetchRoomDetails(activeRoomId, currentFolderId);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleUploadFile = async (fileName, fileSizeStr) => {
+    if (!activeRoomId) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/files/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          room_id: activeRoomId,
+          name: fileName,
+          size_str: fileSizeStr,
+          parent_id: currentFolderId,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'Failed to upload file');
+      }
+
+      setShowUploadFileModal(false);
+      fetchRoomDetails(activeRoomId, currentFolderId);
     } catch (err) {
       alert(err.message);
     }
@@ -313,7 +418,7 @@ export default function App() {
       });
       setShowMoveModal(false);
       setSelectedFileTarget(null);
-      if (activeRoomId) fetchRoomDetails(activeRoomId);
+      if (activeRoomId) fetchRoomDetails(activeRoomId, currentFolderId);
     } catch (err) {
       alert(err.message);
     }
@@ -327,9 +432,25 @@ export default function App() {
       });
       setShowDeleteModal(false);
       setSelectedFileTarget(null);
-      if (activeRoomId) fetchRoomDetails(activeRoomId);
+      if (activeRoomId) fetchRoomDetails(activeRoomId, currentFolderId);
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const handleNavigateFolder = (folderId, folderName) => {
+    setCurrentFolderId(folderId);
+    setFolderPath((prev) => [...prev, { id: folderId, name: folderName }]);
+  };
+
+  const handleBreadcrumbClick = (index) => {
+    if (index === -1) {
+      setCurrentFolderId(null);
+      setFolderPath([]);
+    } else {
+      const newPath = folderPath.slice(0, index + 1);
+      setFolderPath(newPath);
+      setCurrentFolderId(newPath[newPath.length - 1].id);
     }
   };
 
@@ -373,7 +494,16 @@ export default function App() {
     return <LoginScreen onLogin={loginWithGoogle} loading={loading} error={error} />;
   }
 
-  const availableFolders = activeRoomDetails?.files?.filter((f) => f.is_folder) || [];
+  const currentUserMemberQuota = activeRoomDetails?.members?.find(
+    (m) => m.user_id === user?.id || m.email === user?.email
+  )?.contributed_storage_gb || 0;
+
+  const handleOpenContributeModal = (existingQuota = 0) => {
+    if (existingQuota > 0) {
+      setQuotaGb(String(existingQuota));
+    }
+    setShowContributeModal(true);
+  };
 
   return (
     <div className="discord-layout">
@@ -382,7 +512,11 @@ export default function App() {
         user={user}
         rooms={rooms}
         activeRoomId={activeRoomId}
-        onSelectRoom={(id) => setActiveRoomId(id)}
+        onSelectRoom={(id) => {
+          setActiveRoomId(id);
+          setCurrentFolderId(null);
+          setFolderPath([]);
+        }}
         onOpenCreateModal={() => setShowCreateModal(true)}
         onOpenJoinModal={() => setShowJoinModal(true)}
         onOpenSignOutModal={() => setShowSignOutModal(true)}
@@ -391,23 +525,30 @@ export default function App() {
       {/* Center Main Workspace */}
       <MainWorkspace
         activeRoomDetails={activeRoomDetails}
+        currentFolder={currentFolderId}
+        folderPath={folderPath}
         copiedId={copiedId}
         onCopyRoomId={copyRoomId}
-        onOpenMoveModal={(item) => {
-          setSelectedFileTarget(item);
-          setShowMoveModal(true);
-        }}
+        onOpenCreateFolderModal={() => setShowCreateFolderModal(true)}
+        onOpenUploadFileModal={() => setShowUploadFileModal(true)}
+        onOpenMoveModal={handleOpenMoveModal}
         onOpenDeleteModal={(item) => {
           setSelectedFileTarget(item);
           setShowDeleteModal(true);
         }}
+        onOpenDetailsModal={(item) => {
+          setSelectedDetailsItem(item);
+          setShowDetailsModal(true);
+        }}
+        onNavigateFolder={handleNavigateFolder}
+        onBreadcrumbClick={handleBreadcrumbClick}
       />
 
       {/* Rightmost Sidebar: Storage Pool + Members List */}
       <RightMembersPanel
         user={user}
         activeRoomDetails={activeRoomDetails}
-        onOpenContributeModal={() => setShowContributeModal(true)}
+        onOpenContributeModal={handleOpenContributeModal}
         onMemberMouseEnter={handleMemberMouseEnter}
         onMemberMouseLeave={handleMemberMouseLeave}
       />
@@ -459,6 +600,7 @@ export default function App() {
           setVaultFolder={setVaultFolder}
           quotaGb={quotaGb}
           setQuotaGb={setQuotaGb}
+          isExisting={currentUserMemberQuota > 0}
           onAuthorizeDrive={() => authorizeDrive()}
           onClose={() => setShowContributeModal(false)}
           onSubmit={handleSaveContribution}
@@ -466,10 +608,34 @@ export default function App() {
         />
       )}
 
+      {showCreateFolderModal && (
+        <CreateFolderModal
+          onClose={() => setShowCreateFolderModal(false)}
+          onCreate={handleCreateFolder}
+        />
+      )}
+
+      {showUploadFileModal && (
+        <UploadFileModal
+          onClose={() => setShowUploadFileModal(false)}
+          onUpload={handleUploadFile}
+        />
+      )}
+
+      {showDetailsModal && (
+        <FileDetailsModal
+          item={selectedDetailsItem}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setSelectedDetailsItem(null);
+          }}
+        />
+      )}
+
       {showMoveModal && (
         <MoveFileModal
           selectedItem={selectedFileTarget}
-          folders={availableFolders}
+          folders={allRoomFolders}
           onClose={() => {
             setShowMoveModal(false);
             setSelectedFileTarget(null);

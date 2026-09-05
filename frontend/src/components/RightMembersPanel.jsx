@@ -1,5 +1,5 @@
 import React from 'react';
-import { HardDriveUpload } from 'lucide-react';
+import { HardDriveUpload, Edit3 } from 'lucide-react';
 
 export default function RightMembersPanel({
   user,
@@ -24,7 +24,7 @@ export default function RightMembersPanel({
             <div className="pool-header">
               <span>Your Contribution</span>
               <strong style={{ color: myQuota > 0 ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-                {myQuota} GB
+                {myQuota > 0 ? `${myQuota} GB` : '0 GB'}
               </strong>
             </div>
 
@@ -52,8 +52,16 @@ export default function RightMembersPanel({
               <strong style={{ color: 'var(--text-primary)' }}>{totalPool} GB</strong>
             </div>
 
-            <button className="btn-contribute" onClick={onOpenContributeModal}>
-              <HardDriveUpload size={15} /> Contribute Storage
+            <button className="btn-contribute" onClick={() => onOpenContributeModal(myQuota)}>
+              {myQuota > 0 ? (
+                <>
+                  <Edit3 size={15} /> Modify Contribution
+                </>
+              ) : (
+                <>
+                  <HardDriveUpload size={15} /> Contribute Storage
+                </>
+              )}
             </button>
           </div>
 

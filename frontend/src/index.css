@@ -202,6 +202,77 @@ body {
   color: var(--text-primary);
 }
 
+/* MINI EXPLORER STYLES FOR MOVE MODAL */
+.mini-explorer-container {
+  max-height: 240px;
+  overflow-y: auto;
+  background-color: #0b101b;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.folder-tree-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.folder-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.folder-tree-row:hover:not(.disabled) {
+  background-color: var(--bg-card-hover);
+}
+
+.folder-tree-row.selected {
+  background-color: rgba(59, 130, 246, 0.18) !important;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  font-weight: 600;
+}
+
+.folder-tree-row.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.expand-arrow {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.expand-arrow:hover {
+  color: var(--text-primary);
+}
+
+.expand-spacer {
+  width: 14px;
+}
+
+.disabled-badge {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-left: auto;
+  font-style: italic;
+}
+
 .storage-subtext {
   font-size: 0.875rem;
   color: var(--text-muted);
@@ -289,17 +360,29 @@ body {
   background-color: var(--accent-green-hover);
 }
 
-/* SINGLE-CLICK CONTEXTUAL TOOLBAR */
+/* FIXED PERSISTENT CONTEXTUAL TOOLBAR */
 .context-toolbar {
-  padding: 0.6rem 1rem;
-  background-color: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  height: 46px;
+  padding: 0 1rem;
+  background-color: #0f172a;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 0.85rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  animation: fadeIn 0.15s ease-in-out;
+  transition: all 0.2s ease;
+}
+
+.context-toolbar.active {
+  background-color: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.context-toolbar-placeholder {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .context-toolbar-info {

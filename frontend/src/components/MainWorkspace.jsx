@@ -15,19 +15,25 @@ import {
   Move,
   Trash2,
   ChevronRight,
-  Home
+  Home,
+  Info
 } from 'lucide-react';
 
 export default function MainWorkspace({
   activeRoomDetails,
+  currentFolder,
+  folderPath,
   copiedId,
   onCopyRoomId,
+  onOpenCreateFolderModal,
+  onOpenUploadFileModal,
   onOpenMoveModal,
   onOpenDeleteModal,
+  onOpenDetailsModal,
+  onNavigateFolder,
+  onBreadcrumbClick,
 }) {
   const [selectedItemId, setSelectedItemId] = useState(null);
-  const [currentFolder, setCurrentFolder] = useState(null); // null = root
-  const [folderPath, setFolderPath] = useState([]);
 
   const selectedItem = activeRoomDetails?.files?.find((f) => f.id === selectedItemId);
 
@@ -41,32 +47,17 @@ export default function MainWorkspace({
 
   const handleRowDoubleClick = (item) => {
     if (item.is_folder) {
-      setCurrentFolder(item.id);
-      setFolderPath((prev) => [...prev, { id: item.id, name: item.name }]);
+      onNavigateFolder(item.id, item.name);
       setSelectedItemId(null);
     } else {
-      // Simulate file download/preview
-      alert(`Opening/Downloading file: ${item.name}`);
+      onOpenDetailsModal(item);
     }
-  };
-
-  const handleBreadcrumbClick = (index) => {
-    if (index === -1) {
-      setCurrentFolder(null);
-      setFolderPath([]);
-    } else {
-      const newPath = folderPath.slice(0, index + 1);
-      setFolderPath(newPath);
-      setCurrentFolder(newPath[newPath.length - 1].id);
-    }
-    setSelectedItemId(null);
   };
 
   const handleDownload = (item) => {
     alert(`Downloading ${item.name}...`);
   };
 
-  // Calculate storage usage values
   const totalAllocated = activeRoomDetails?.total_allocated_gb || 20;
   const usedStorage = activeRoomDetails?.used_storage_gb || 4.2;
   const usagePercentage = Math.min(100, (usedStorage / (totalAllocated || 1)) * 100).toFixed(1);
@@ -98,10 +89,10 @@ export default function MainWorkspace({
         </div>
 
         <div className="topbar-actions">
-          <button className="btn-secondary">
+          <button className="btn-secondary" onClick={onOpenCreateFolderModal}>
             <FolderPlus size={16} /> New Folder
           </button>
-          <button className="btn-primary-action">
+          <button className="btn-primary-action" onClick={onOpenUploadFileModal}>
             <Upload size={16} /> Upload File
           </button>
         </div>
@@ -128,16 +119,16 @@ export default function MainWorkspace({
 
       {/* File Table View */}
       <div className="file-table-container">
-        {/* Breadcrumb Navigation */}
+        {/* Breadcrumb Navigation Bar */}
         {activeRoomDetails && (
           <div className="breadcrumb-bar">
-            <span className="breadcrumb-item" onClick={() => handleBreadcrumbClick(-1)}>
+            <span className="breadcrumb-item" onClick={() => onBreadcrumbClick(-1)}>
               <Home size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> Root
             </span>
             {folderPath.map((f, idx) => (
               <React.Fragment key={f.id}>
                 <ChevronRight size={14} color="var(--text-muted)" />
-                <span className="breadcrumb-item" onClick={() => handleBreadcrumbClick(idx)}>
+                <span className="breadcrumb-item" onClick={() => onBreadcrumbClick(idx)}>
                   {f.name}
                 </span>
               </React.Fragment>
@@ -145,36 +136,57 @@ export default function MainWorkspace({
           </div>
         )}
 
-        {/* SINGLE-CLICK CONTEXTUAL TOOLBAR */}
-        {selectedItem && (
-          <div className="context-toolbar">
-            <div className="context-toolbar-info">
-              {selectedItem.is_folder ? <Folder size={18} color="#94a3b8" /> : <FileText size={18} color="#3b82f6" />}
-              <span>{selectedItem.name}</span>
-            </div>
+        {/* PERSISTENT CONTEXTUAL ACTION BAR (Reserved height to prevent layout shift) */}
+        {activeRoomDetails && (
+          <div className={`context-toolbar ${selectedItem ? 'active' : ''}`}>
+            {selectedItem ? (
+              <>
+                <div className="context-toolbar-info">
+                  {selectedItem.is_folder ? (
+                    <Folder size={18} color="#94a3b8" />
+                  ) : (
+                    <FileText size={18} color="#3b82f6" />
+                  )}
+                  <span style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedItem.name}
+                  </span>
+                </div>
 
-            <div className="context-toolbar-actions">
-              <button
-                className="btn-context-action"
-                onClick={() => handleDownload(selectedItem)}
-              >
-                <Download size={14} /> Download
-              </button>
+                <div className="context-toolbar-actions">
+                  <button
+                    className="btn-context-action"
+                    onClick={() => onOpenDetailsModal(selectedItem)}
+                  >
+                    <Info size={14} /> Details
+                  </button>
 
-              <button
-                className="btn-context-action"
-                onClick={() => onOpenMoveModal(selectedItem)}
-              >
-                <Move size={14} /> Move
-              </button>
+                  <button
+                    className="btn-context-action"
+                    onClick={() => handleDownload(selectedItem)}
+                  >
+                    <Download size={14} /> Download
+                  </button>
 
-              <button
-                className="btn-context-action danger"
-                onClick={() => onOpenDeleteModal(selectedItem)}
-              >
-                <Trash2 size={14} /> Delete
-              </button>
-            </div>
+                  <button
+                    className="btn-context-action"
+                    onClick={() => onOpenMoveModal(selectedItem)}
+                  >
+                    <Move size={14} /> Move
+                  </button>
+
+                  <button
+                    className="btn-context-action danger"
+                    onClick={() => onOpenDeleteModal(selectedItem)}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="context-toolbar-placeholder">
+                Select a file or folder to view action options
+              </div>
+            )}
           </div>
         )}
 
@@ -208,7 +220,9 @@ export default function MainWorkspace({
                         ) : (
                           <FileText size={20} color="#3b82f6" />
                         )}
-                        <span>{item.name}</span>
+                        <span style={{ maxWidth: '420px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.name}
+                        </span>
                       </div>
                     </td>
                     <td>
@@ -220,7 +234,16 @@ export default function MainWorkspace({
                     <td style={{ color: 'var(--text-secondary)' }}>{item.date_modified}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{item.size}</td>
                     <td>
-                      <MoreVertical size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} />
+                      <MoreVertical
+                        size={16}
+                        color="var(--text-muted)"
+                        style={{ cursor: 'pointer' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenDetailsModal(item);
+                        }}
+                        title="View Details"
+                      />
                     </td>
                   </tr>
                 );
