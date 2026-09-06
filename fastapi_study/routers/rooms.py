@@ -1,4 +1,6 @@
 import logging
+import json
+import requests
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -6,9 +8,11 @@ from database import get_db
 from models import User, Room, UserRoom, FileItem
 from schemas import RoomCreate, RoomJoin, RoomResponse, UserResponse, StorageContributeRequest, ContributionResponse
 from auth_utils import get_current_user
+from routers.files import get_fresh_google_access_token
 
 logger = logging.getLogger("rooms")
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
+
 
 @router.post("", response_model=RoomResponse)
 def create_room(
@@ -150,12 +154,41 @@ def contribute_storage(
     gdrive_folder_name = f"CloudAggregator_Room_{room_id}_User_{current_user.id}"
 
     membership.allocated_bytes = payload.allocated_bytes
-    if not membership.gdrive_folder_id:
-        membership.gdrive_folder_id = gdrive_folder_name
+
+    # Create physical folder in Google Drive if real ID is not yet stored
+    if not membership.gdrive_folder_id or membership.gdrive_folder_id.startswith("CloudAggregator_") or membership.gdrive_folder_id.startswith("mock_"):
+        access_token = get_fresh_google_access_token(current_user, db)
+        folder_id = f"mock_folder_{room_id}_{current_user.id}"
+
+        if access_token and not access_token.startswith("mock_"):
+            try:
+                folder_metadata = {
+                    "name": gdrive_folder_name,
+                    "mimeType": "application/vnd.google-apps.folder"
+                }
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                }
+                gdrive_res = requests.post(
+                    "https://www.googleapis.com/drive/v3/files",
+                    headers=headers,
+                    data=json.dumps(folder_metadata)
+                )
+
+                if gdrive_res.status_code == 200:
+                    folder_id = gdrive_res.json().get("id", folder_id)
+                    logger.info(f"Created real Google Drive folder '{gdrive_folder_name}' with ID {folder_id}")
+                else:
+                    logger.warning(f"Google Drive folder creation status {gdrive_res.status_code}: {gdrive_res.text}")
+            except Exception as e:
+                logger.error(f"Error creating Google Drive folder: {e}")
+
+        membership.gdrive_folder_id = folder_id
 
     db.commit()
     db.refresh(membership)
-    logger.info(f"Storage allocation updated for User ID {current_user.id} in Room ID {room_id}: {membership.allocated_bytes} bytes")
+    logger.info(f"Storage allocation updated for User ID {current_user.id} in Room ID {room_id}: {membership.allocated_bytes} bytes (GDrive Folder ID: {membership.gdrive_folder_id})")
     return membership
 
 @router.get("/{room_id}/dashboard")

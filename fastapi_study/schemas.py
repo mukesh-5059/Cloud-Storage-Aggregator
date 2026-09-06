@@ -93,3 +93,23 @@ class FileItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class UploadIntentRequest(BaseModel):
+    name: str
+    size_bytes: int
+    mime_type: Optional[str] = "application/octet-stream"
+    parent_id: Optional[int] = None
+
+class UploadIntentResponse(BaseModel):
+    upload_url: str
+    storage_user_id: int
+    storage_user_name: str
+
+class UploadCompleteRequest(BaseModel):
+    gdrive_file_id: str
+    name: str
+    size_bytes: int
+    mime_type: Optional[str] = "application/octet-stream"
+    parent_id: Optional[int] = None
+    storage_user_id: int
+
+

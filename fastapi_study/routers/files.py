@@ -1,15 +1,53 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+import json
+import requests
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from database import get_db
 from models import User, Room, UserRoom, FileItem
-from schemas import FileItemResponse, FolderCreateRequest, FileMoveRequest
+from schemas import (
+    FileItemResponse,
+    FolderCreateRequest,
+    FileMoveRequest,
+    UploadIntentRequest,
+    UploadIntentResponse,
+    UploadCompleteRequest
+)
 from auth_utils import get_current_user
+from routers.auth import CLIENT_ID, CLIENT_SECRET
 
 logger = logging.getLogger("files")
 router = APIRouter(prefix="/files", tags=["Files"])
+
+
+def get_fresh_google_access_token(user: User, db: Session) -> Optional[str]:
+    """Retrieves a fresh Google OAuth access token for a user, refreshing it if possible."""
+    if not user:
+        return None
+    if user.google_refresh_token:
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "refresh_token": user.google_refresh_token,
+            "grant_type": "refresh_token"
+        }
+        try:
+            res = requests.post(token_url, data=data)
+            if res.status_code == 200:
+                tokens = res.json()
+                new_acc_token = tokens.get("access_token")
+                if new_acc_token:
+                    user.google_access_token = new_acc_token
+                    db.commit()
+                    return new_acc_token
+        except Exception as e:
+            logger.warning(f"Failed to refresh Google access token for User ID {user.id}: {e}")
+    return user.google_access_token
+
 
 def check_membership(user_id: int, room_id: int, db: Session):
     membership = db.query(UserRoom).filter(
@@ -19,6 +57,7 @@ def check_membership(user_id: int, room_id: int, db: Session):
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Not a room member")
     return membership
+
 
 @router.get("/room/{room_id}", response_model=List[FileItemResponse])
 def list_files(
@@ -40,6 +79,7 @@ def list_files(
 
     return files
 
+
 @router.get("/room/{room_id}/search", response_model=List[FileItemResponse])
 def search_files(
     room_id: int,
@@ -59,6 +99,7 @@ def search_files(
         item.host_name = item.storage_user.name if item.storage_user else "Unknown"
 
     return results
+
 
 @router.post("/room/{room_id}/folder", response_model=FileItemResponse)
 def create_folder(
@@ -88,28 +129,33 @@ def create_folder(
     logger.info(f"Created folder '{folder_item.name}' (ID {folder_item.id}) in Room ID {room_id}")
     return folder_item
 
-@router.post("/room/{room_id}/upload", response_model=FileItemResponse)
-async def upload_file(
+
+# ==========================================
+# 3-Step Resumable Upload Flow (Endpoints 1 & 2)
+# ==========================================
+
+@router.post("/room/{room_id}/upload-intent", response_model=UploadIntentResponse)
+def create_upload_intent(
     room_id: int,
-    file: UploadFile = File(...),
-    parent_id: Optional[int] = Form(None),
+    payload: UploadIntentRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """Step 1 of 3-step upload: Generates Google Drive Resumable Upload URL."""
     check_membership(current_user.id, room_id, db)
 
-    content = await file.read()
-    file_size = len(content)
+    if payload.parent_id:
+        parent = db.query(FileItem).filter(FileItem.id == payload.parent_id, FileItem.room_id == room_id).first()
+        if not parent or not parent.is_folder:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid parent folder ID")
 
     # Find room contributor with highest available free capacity in user_rooms
     memberships = db.query(UserRoom).filter(UserRoom.room_id == room_id).all()
-
-    # Sort contributors by highest available free capacity (allocated_bytes - used_bytes)
     memberships.sort(key=lambda m: (m.allocated_bytes - m.used_bytes), reverse=True)
 
     target_contrib = None
     for m in memberships:
-        if (m.allocated_bytes - m.used_bytes) >= file_size:
+        if (m.allocated_bytes - m.used_bytes) >= payload.size_bytes:
             target_contrib = m
             break
 
@@ -119,29 +165,166 @@ async def upload_file(
             detail="Room storage quota exceeded! No room contributor has enough free quota."
         )
 
-    mock_gdrive_file_id = f"gdrive_file_{room_id}_{target_contrib.user_id}_{file.filename}"
+    storage_user = db.query(User).filter(User.id == target_contrib.user_id).first()
+    access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
+
+    # Fallback mock upload_url for offline testing
+    upload_url = f"https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&mock_session={room_id}_{target_contrib.user_id}"
+
+    if access_token and not access_token.startswith("mock_"):
+        try:
+            metadata = {
+                "name": payload.name,
+                "mimeType": payload.mime_type or "application/octet-stream"
+            }
+            if target_contrib.gdrive_folder_id:
+                metadata["parents"] = [target_contrib.gdrive_folder_id]
+
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "X-Upload-Content-Type": payload.mime_type or "application/octet-stream",
+                "X-Upload-Content-Length": str(payload.size_bytes),
+                "Content-Type": "application/json; charset=UTF-8"
+            }
+
+            gdrive_res = requests.post(
+                "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+                headers=headers,
+                data=json.dumps(metadata)
+            )
+
+            if gdrive_res.status_code == 200 and "Location" in gdrive_res.headers:
+                upload_url = gdrive_res.headers["Location"]
+                logger.info(f"Generated Google Drive resumable upload URL for '{payload.name}'")
+            else:
+                logger.warning(f"Google Drive API intent failed ({gdrive_res.status_code}): {gdrive_res.text}. Returning mock upload_url.")
+        except Exception as e:
+            logger.error(f"Error calling Google Drive API for upload intent: {e}. Returning mock upload_url.")
+
+    return UploadIntentResponse(
+        upload_url=upload_url,
+        storage_user_id=target_contrib.user_id,
+        storage_user_name=storage_user.name if storage_user else "Unknown"
+    )
+
+
+@router.post("/room/{room_id}/complete-upload", response_model=FileItemResponse)
+def complete_upload(
+    room_id: int,
+    payload: UploadCompleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Step 3 of 3-step upload: Confirms file in DB and updates contributor quota after direct Drive upload."""
+    check_membership(current_user.id, room_id, db)
+
+    target_contrib = db.query(UserRoom).filter(
+        UserRoom.room_id == room_id,
+        UserRoom.user_id == payload.storage_user_id
+    ).first()
+
+    if not target_contrib:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Specified storage user is not a contributor in this room."
+        )
+
+    if (target_contrib.allocated_bytes - target_contrib.used_bytes) < payload.size_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Storage quota exceeded for the specified host contributor."
+        )
+
+    storage_user = db.query(User).filter(User.id == payload.storage_user_id).first()
+    access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
+
+    # Set file permission to 'anyone/reader' so preview iframe works for all room members
+    if access_token and not payload.gdrive_file_id.startswith("mock_"):
+        try:
+            perm_url = f"https://www.googleapis.com/drive/v3/files/{payload.gdrive_file_id}/permissions"
+            perm_data = {"role": "reader", "type": "anyone"}
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            requests.post(perm_url, headers=headers, data=json.dumps(perm_data))
+        except Exception as e:
+            logger.warning(f"Could not set 'anyone/reader' permission on Drive file {payload.gdrive_file_id}: {e}")
 
     file_item = FileItem(
         room_id=room_id,
-        parent_id=parent_id,
-        name=file.filename,
+        parent_id=payload.parent_id,
+        name=payload.name,
         is_folder=False,
-        size_bytes=file_size,
-        mime_type=file.content_type,
+        size_bytes=payload.size_bytes,
+        mime_type=payload.mime_type,
         uploader_id=current_user.id,
-        storage_user_id=target_contrib.user_id,
-        gdrive_file_id=mock_gdrive_file_id
+        storage_user_id=payload.storage_user_id,
+        gdrive_file_id=payload.gdrive_file_id
     )
 
-    # Deduct quota from target contributor & increment files hosted count
-    target_contrib.used_bytes += file_size
+    # Deduct quota from host contributor & increment files hosted count
+    target_contrib.used_bytes += payload.size_bytes
     target_contrib.files_hosted_count += 1
 
     db.add(file_item)
     db.commit()
     db.refresh(file_item)
-    logger.info(f"File '{file_item.name}' ({file_size} bytes) uploaded to Room {room_id}, hosted on User {target_contrib.user_id}'s GDrive")
+
+    file_item.uploader_name = current_user.name
+    file_item.host_name = storage_user.name if storage_user else "Unknown"
+
+    logger.info(f"Completed upload for '{file_item.name}' (ID {file_item.id}) in Room {room_id}, hosted on User {file_item.storage_user_id}")
     return file_item
+
+
+@router.get("/{file_id}/download")
+def download_file(
+    file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    item = db.query(FileItem).filter(FileItem.id == file_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File item not found")
+
+    check_membership(current_user.id, item.room_id, db)
+
+    if item.is_folder:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot download a folder")
+
+    storage_user = db.query(User).filter(User.id == item.storage_user_id).first() if item.storage_user_id else None
+    access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
+
+    if item.gdrive_file_id and access_token and not item.gdrive_file_id.startswith("mock_"):
+        try:
+            drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}?alt=media"
+            headers = {"Authorization": f"Bearer {access_token}"}
+            gdrive_res = requests.get(drive_url, headers=headers, stream=True)
+
+            if gdrive_res.status_code == 200:
+                def iterfile():
+                    for chunk in gdrive_res.iter_content(chunk_size=8192):
+                        if chunk:
+                            yield chunk
+
+                return StreamingResponse(
+                    iterfile(),
+                    media_type=item.mime_type or "application/octet-stream",
+                    headers={"Content-Disposition": f'attachment; filename="{item.name}"'}
+                )
+            else:
+                logger.warning(f"Google Drive API download failed ({gdrive_res.status_code}): {gdrive_res.text}")
+        except Exception as e:
+            logger.error(f"Error downloading from Google Drive API: {e}")
+
+    dummy_content = f"Dummy binary content for file '{item.name}' (ID {item.id}, hosted on User {item.storage_user_id}'s GDrive)".encode()
+    return Response(
+        content=dummy_content,
+        media_type=item.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{item.name}"'}
+    )
+
 
 @router.patch("/{file_id}/move", response_model=FileItemResponse)
 def move_file(
@@ -170,14 +353,24 @@ def move_file(
     logger.info(f"Moved item ID {item.id} ('{item.name}') to parent_id {item.parent_id}")
     return item
 
+
 def delete_item_recursively(item: FileItem, db: Session):
-    # If folder, find all children and delete them recursively
     if item.is_folder:
         children = db.query(FileItem).filter(FileItem.parent_id == item.id).all()
         for child in children:
             delete_item_recursively(child, db)
     else:
-        # Reclaim storage quota and decrement files_hosted_count from physical host contributor
+        if item.storage_user_id and item.gdrive_file_id and not item.gdrive_file_id.startswith("mock_"):
+            storage_user = db.query(User).filter(User.id == item.storage_user_id).first()
+            access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
+            if access_token:
+                try:
+                    drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}"
+                    headers = {"Authorization": f"Bearer {access_token}"}
+                    requests.delete(drive_url, headers=headers)
+                except Exception as e:
+                    logger.warning(f"Failed to delete file {item.gdrive_file_id} from Google Drive: {e}")
+
         if item.storage_user_id:
             membership = db.query(UserRoom).filter(
                 UserRoom.room_id == item.room_id,
@@ -188,6 +381,7 @@ def delete_item_recursively(item: FileItem, db: Session):
                 membership.files_hosted_count = max(0, membership.files_hosted_count - 1)
 
     db.delete(item)
+
 
 @router.delete("/{file_id}")
 def delete_file(
