@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FolderInput, Folder, FolderPlus, ChevronRight, Check } from 'lucide-react';
+import { X, FolderInput, Folder, FolderPlus, ChevronRight, Check, RefreshCw } from 'lucide-react';
 
 export default function MoveFileModal({
   isOpen,
@@ -16,6 +16,7 @@ export default function MoveFileModal({
   const [loading, setLoading] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [moving, setMoving] = useState(false);
 
   // Fetch folders in current directory
   useEffect(() => {
@@ -80,12 +81,12 @@ export default function MoveFileModal({
   };
 
   const handleMoveHere = async () => {
-    // Check if item is already in currentFolderId
-    if (fileToMove.parent_id === currentFolderId) {
+    if (currentFolderId === fileToMove.parent_id) {
       onClose();
       return;
     }
 
+    setMoving(true);
     try {
       const res = await fetch(`${BACKEND_URL}/files/${fileToMove.id}/move`, {
         method: 'PATCH',
@@ -106,6 +107,8 @@ export default function MoveFileModal({
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -211,9 +214,18 @@ export default function MoveFileModal({
               <button className="btn-slate" onClick={onClose}>
                 Cancel
               </button>
-              <button className="btn-emerald" onClick={handleMoveHere}>
-                <Check size={16} />
-                <span>Move Here</span>
+              <button className="btn-emerald" onClick={handleMoveHere} disabled={moving}>
+                {moving ? (
+                  <>
+                    <RefreshCw className="animate-spin" size={16} />
+                    <span>Moving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} />
+                    <span>Move Here</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

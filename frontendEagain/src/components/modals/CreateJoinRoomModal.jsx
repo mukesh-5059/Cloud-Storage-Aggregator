@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Shield, PlusCircle, LogIn } from 'lucide-react';
+import { X, Shield, PlusCircle, LogIn, RefreshCw } from 'lucide-react';
 
 export default function CreateJoinRoomModal({ isOpen, onClose, onCreateRoom, onJoinRoom, error }) {
   const [activeTab, setActiveTab] = useState('create'); // 'create' or 'join'
@@ -7,28 +7,39 @@ export default function CreateJoinRoomModal({ isOpen, onClose, onCreateRoom, onJ
   const [password, setPassword] = useState('');
   const [joinId, setJoinId] = useState('');
   const [joinPassword, setJoinPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
-    onCreateRoom(name, password);
+    setLoading(true);
+    try {
+      await onCreateRoom(name, password);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleJoin = (e) => {
+  const handleJoin = async (e) => {
     e.preventDefault();
-    onJoinRoom(Number(joinId), joinPassword);
+    setLoading(true);
+    try {
+      await onJoinRoom(Number(joinId), joinPassword);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={loading ? undefined : onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2 className="modal-title">
             <Shield size={20} color="var(--emerald-primary)" />
             <span>Room Management</span>
           </h2>
-          <button className="close-btn" onClick={onClose}>
+          <button className="close-btn" onClick={onClose} disabled={loading}>
             <X size={20} />
           </button>
         </div>
@@ -37,12 +48,14 @@ export default function CreateJoinRoomModal({ isOpen, onClose, onCreateRoom, onJ
           <button
             className={`modal-tab ${activeTab === 'create' ? 'active' : ''}`}
             onClick={() => setActiveTab('create')}
+            disabled={loading}
           >
             Create New Room
           </button>
           <button
             className={`modal-tab ${activeTab === 'join' ? 'active' : ''}`}
             onClick={() => setActiveTab('join')}
+            disabled={loading}
           >
             Join Existing Room
           </button>
@@ -71,6 +84,7 @@ export default function CreateJoinRoomModal({ isOpen, onClose, onCreateRoom, onJ
                 placeholder="e.g. Design Team Shared Vault"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={loading}
                 required
               />
             </div>
@@ -83,13 +97,23 @@ export default function CreateJoinRoomModal({ isOpen, onClose, onCreateRoom, onJ
                 placeholder="Set password for room access"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
                 required
               />
             </div>
 
-            <button type="submit" className="btn-emerald" style={{ justifyContent: 'center', marginTop: '8px' }}>
-              <PlusCircle size={18} />
-              <span>Create Room</span>
+            <button type="submit" className="btn-emerald" disabled={loading} style={{ justifyContent: 'center', marginTop: '8px' }}>
+              {loading ? (
+                <>
+                  <RefreshCw className="animate-spin" size={18} />
+                  <span>Creating Room...</span>
+                </>
+              ) : (
+                <>
+                  <PlusCircle size={18} />
+                  <span>Create Room</span>
+                </>
+              )}
             </button>
           </form>
         ) : (
@@ -102,6 +126,7 @@ export default function CreateJoinRoomModal({ isOpen, onClose, onCreateRoom, onJ
                 placeholder="Enter numerical Room ID (e.g. 1)"
                 value={joinId}
                 onChange={(e) => setJoinId(e.target.value)}
+                disabled={loading}
                 required
               />
             </div>
@@ -114,13 +139,23 @@ export default function CreateJoinRoomModal({ isOpen, onClose, onCreateRoom, onJ
                 placeholder="Enter room password"
                 value={joinPassword}
                 onChange={(e) => setJoinPassword(e.target.value)}
+                disabled={loading}
                 required
               />
             </div>
 
-            <button type="submit" className="btn-emerald" style={{ justifyContent: 'center', marginTop: '8px' }}>
-              <LogIn size={18} />
-              <span>Join Room</span>
+            <button type="submit" className="btn-emerald" disabled={loading} style={{ justifyContent: 'center', marginTop: '8px' }}>
+              {loading ? (
+                <>
+                  <RefreshCw className="animate-spin" size={18} />
+                  <span>Joining Room...</span>
+                </>
+              ) : (
+                <>
+                  <LogIn size={18} />
+                  <span>Join Room</span>
+                </>
+              )}
             </button>
           </form>
         )}

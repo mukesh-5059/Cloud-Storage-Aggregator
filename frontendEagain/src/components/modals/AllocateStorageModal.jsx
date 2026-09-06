@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, HardDrive, CheckCircle } from 'lucide-react';
+import { X, HardDrive, CheckCircle, RefreshCw } from 'lucide-react';
 
 export default function AllocateStorageModal({ isOpen, onClose, activeRoom, currentUser, onAllocateStorage }) {
   const [allocatedGb, setAllocatedGb] = useState(5);
@@ -97,8 +97,17 @@ export default function AllocateStorageModal({ isOpen, onClose, activeRoom, curr
             disabled={loading}
             style={{ justifyContent: 'center', marginTop: '8px' }}
           >
-            <CheckCircle size={18} />
-            <span>{loading ? 'Allocating...' : `Confirm ${allocatedGb} GB Allocation`}</span>
+            {loading ? (
+              <>
+                <RefreshCw className="animate-spin" size={18} />
+                <span>Allocating Storage...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle size={18} />
+                <span>Confirm {allocatedGb} GB Allocation</span>
+              </>
+            )}
           </button>
         </form>
       </div>

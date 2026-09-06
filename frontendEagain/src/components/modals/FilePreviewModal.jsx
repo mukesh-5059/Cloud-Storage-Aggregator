@@ -1,31 +1,33 @@
 import React from 'react';
 import { X, Download, FileText, ExternalLink } from 'lucide-react';
 
-export default function FilePreviewModal({ isOpen, onClose, file, appJwt, BACKEND_URL }) {
+export default function FilePreviewModal({ isOpen, onClose, file, appJwt, BACKEND_URL, onDownloadFile }) {
   if (!isOpen || !file) return null;
 
   const embedUrl = file.gdrive_file_id 
     ? `https://drive.google.com/file/d/${file.gdrive_file_id}/preview`
     : null;
 
-  const downloadUrl = `${BACKEND_URL}/files/${file.id}/download`;
-
   const handleDownload = () => {
-    // Initiate direct download request with JWT header
-    fetch(downloadUrl, {
-      headers: { Authorization: `Bearer ${appJwt}` }
-    })
-      .then(res => res.blob())
-      .then(blob => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+    if (onDownloadFile) {
+      onDownloadFile(file);
+    } else {
+      const downloadUrl = `${BACKEND_URL}/files/${file.id}/download`;
+      fetch(downloadUrl, {
+        headers: { Authorization: `Bearer ${appJwt}` }
       })
-      .catch(err => console.error('Download failed:', err));
+        .then(res => res.blob())
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        })
+        .catch(err => console.error('Download failed:', err));
+    }
   };
 
   return (

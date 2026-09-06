@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   FolderPlus, Search, LayoutList, LayoutGrid, Folder, FileText, Image as ImageIcon, 
   Video, Music, Archive, Eye, FolderInput, Info, Trash2, ChevronRight,
-  Download, ExternalLink, MousePointerClick, Edit2
+  Download, ExternalLink, MousePointerClick, Edit2, RefreshCw
 } from 'lucide-react';
 
 function formatBytes(bytes, decimals = 1) {
@@ -56,11 +56,18 @@ export default function FileExplorer({
   onOpenPreview,
   onDownloadFile,
   onDeleteFile,
+  loadingFiles,
   searchQuery,
   onSearchChange
 }) {
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
   const [selectedId, setSelectedId] = useState(null);
+  const [localSearchInput, setLocalSearchInput] = useState(searchQuery || '');
+
+  // Keep local search input in sync if parent resets searchQuery
+  useEffect(() => {
+    setLocalSearchInput(searchQuery || '');
+  }, [searchQuery]);
 
   // Keyboard shortcut '/' to focus search bar
   useEffect(() => {
@@ -129,19 +136,33 @@ export default function FileExplorer({
               id="room-file-search"
               type="text"
               className="search-input"
-              placeholder="Search files..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search files (press Enter)..."
+              value={localSearchInput}
+              onChange={(e) => {
+                const val = e.target.value;
+                setLocalSearchInput(val);
+                if (val === '') {
+                  onSearchChange('');
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onSearchChange(localSearchInput.trim());
+                } else if (e.key === 'Escape') {
+                  setLocalSearchInput('');
+                  onSearchChange('');
+                }
+              }}
             />
             <span className="search-shortcut-badge font-mono">/</span>
           </div>
 
           <button
-            className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+            className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
             onClick={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
-            title="Toggle View Mode"
+            title={viewMode === 'list' ? 'Switch to Grid View' : 'Switch to List View'}
           >
-            {viewMode === 'list' ? <LayoutList size={18} /> : <LayoutGrid size={18} />}
+            {viewMode === 'list' ? <LayoutGrid size={18} /> : <LayoutList size={18} />}
           </button>
         </div>
       </div>
@@ -230,15 +251,49 @@ export default function FileExplorer({
         )}
       </div>
 
-      {/* File Explorer Table View */}
+      {/* File Explorer Content View (List vs Grid) */}
       <div className="file-table-wrapper">
-        {(!items || items.length === 0) ? (
+        {loadingFiles ? (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+            <RefreshCw className="animate-spin" size={28} color="var(--emerald-primary)" />
+            <p style={{ fontSize: '0.85rem' }}>Loading folder items...</p>
+          </div>
+        ) : (!items || items.length === 0) ? (
           <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
             <Folder size={48} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
             <p style={{ fontSize: '0.9rem' }}>This folder is empty</p>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: '4px' }}>
               Upload a file or create a folder to start pooling storage
             </p>
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="file-grid">
+            {items.map((item) => {
+              const isSelected = item.id === selectedId;
+              return (
+                <div
+                  key={item.id}
+                  className={`grid-card ${isSelected ? 'selected' : ''}`}
+                  onClick={() => handleRowClick(item)}
+                  onDoubleClick={() => handleRowDoubleClick(item)}
+                >
+                  <div className="grid-card-icon">
+                    {getFileIcon(item)}
+                  </div>
+                  <div className="grid-card-name" title={item.name}>
+                    {item.name}
+                  </div>
+                  <div className="grid-card-meta font-mono">
+                    <span>{item.is_folder ? 'Folder' : formatBytes(item.size_bytes)}</span>
+                  </div>
+                  {!item.is_folder && (
+                    <div className="grid-card-host font-mono" title={item.host_name || `User #${item.storage_user_id}`}>
+                      Hosted: {item.host_name || `User #${item.storage_user_id}`}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <table className="file-table">

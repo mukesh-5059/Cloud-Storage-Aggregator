@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { RefreshCw } from 'lucide-react';
 import NavigationRail from './components/NavigationRail';
 import StorageHero from './components/StorageHero';
 import FileExplorer from './components/FileExplorer';
@@ -16,6 +17,7 @@ import NewFolderModal from './components/modals/NewFolderModal';
 import UploadFileModal from './components/modals/UploadFileModal';
 import DeleteAccountModal from './components/modals/DeleteAccountModal';
 import RenameItemModal from './components/modals/RenameItemModal';
+import ConfirmDeleteModal from './components/modals/ConfirmDeleteModal';
 
 const BACKEND_URL = 'http://localhost:8000';
 const GOOGLE_CLIENT_ID = '338846147570-nqc50noev8fn4ma36hrpgaltq7jr43k4.apps.googleusercontent.com';
@@ -51,17 +53,105 @@ export default function App() {
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
+  const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
 
   // Selected file targets for modals
   const [fileToMove, setFileToMove] = useState(null);
   const [fileToRename, setFileToRename] = useState(null);
   const [fileToPreview, setFileToPreview] = useState(null);
   const [fileForInfo, setFileForInfo] = useState(null);
+  const [fileToDelete, setFileToDelete] = useState(null);
 
-  const showToast = (msg) => {
+  // Global Screen-Wide Blocking Overlay State
+  const [blockingOverlay, setBlockingOverlay] = useState(null); // { title?, message, subtext? }
+
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = useCallback((msg, duration = 3500) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+
+    if (duration > 0) {
+      toastTimeoutRef.current = setTimeout(() => {
+        setToastMessage(null);
+        toastTimeoutRef.current = null;
+      }, duration);
+    }
+  }, []);
+
+  const handleDownloadFile = (item) => {
+    if (!item || item.is_folder) return;
+    setBlockingOverlay({
+      title: 'Preparing Download',
+      message: `Downloading "${item.name}"...`,
+      subtext: 'Fetching file contents from storage host node...'
+    });
+
+    fetch(`${BACKEND_URL}/files/${item.id}/download`, {
+      headers: { Authorization: `Bearer ${appJwt}` }
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Download failed');
+        return res.blob();
+      })
+      .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = item.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        showToast(`Downloaded "${item.name}" successfully`, 3500);
+      })
+      .catch(err => {
+        console.error(err);
+        showToast(`Failed to download "${item.name}"`, 4000);
+      })
+      .finally(() => {
+        setBlockingOverlay(null);
+      });
   };
+
+  const handleLogout = useCallback(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    setAppJwt(null);
+    setCurrentUser(null);
+    setMyRooms([]);
+    setActiveRoomId(null);
+    setActiveRoom(null);
+    setStorageData({ total_allocated_bytes: 0, total_used_bytes: 0 });
+    setRoomMembers([]);
+    setCurrentFolderId(null);
+    setBreadcrumbs([]);
+    setFileItems([]);
+    setSearchQuery('');
+    setUserNameInput('');
+    setError(null);
+    setToastMessage(null);
+    setBlockingOverlay(null);
+    setIsCreateJoinModalOpen(false);
+    setIsAllocateModalOpen(false);
+    setIsProfileModalOpen(false);
+    setIsDeleteAccountModalOpen(false);
+    setIsUploadModalOpen(false);
+    setIsNewFolderModalOpen(false);
+    setIsMoveModalOpen(false);
+    setIsRenameModalOpen(false);
+    setIsPreviewModalOpen(false);
+    setIsInfoDrawerOpen(false);
+    setIsConfirmDeleteModalOpen(false);
+    setFileToMove(null);
+    setFileToRename(null);
+    setFileToPreview(null);
+    setFileForInfo(null);
+    setFileToDelete(null);
+  }, []);
 
   // Close modals on Escape key
   useEffect(() => {
@@ -77,6 +167,7 @@ export default function App() {
         setIsRenameModalOpen(false);
         setIsPreviewModalOpen(false);
         setIsInfoDrawerOpen(false);
+        setIsConfirmDeleteModalOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -94,14 +185,12 @@ export default function App() {
         const user = await res.json();
         setCurrentUser(user);
       } else {
-        localStorage.removeItem('app_jwt');
-        setAppJwt(null);
-        setCurrentUser(null);
+        handleLogout();
       }
     } catch (err) {
       console.error(err);
     }
-  }, [appJwt]);
+  }, [appJwt, handleLogout]);
 
   // Fetch Joined Rooms
   const fetchMyRooms = useCallback(async () => {
@@ -113,18 +202,26 @@ export default function App() {
       if (res.ok) {
         const rooms = await res.json();
         setMyRooms(rooms);
-        if (rooms.length > 0 && !activeRoomId) {
-          setActiveRoomId(rooms[0].id);
+        if (rooms.length > 0) {
+          if (!activeRoomId || !rooms.some(r => r.id === activeRoomId)) {
+            setActiveRoomId(rooms[0].id);
+          }
+        } else {
+          setActiveRoomId(null);
+          setActiveRoom(null);
+          setStorageData({ total_allocated_bytes: 0, total_used_bytes: 0 });
+          setRoomMembers([]);
+          setFileItems([]);
+          setBreadcrumbs([]);
+          setCurrentFolderId(null);
         }
       } else if (res.status === 401) {
-        localStorage.removeItem('app_jwt');
-        setAppJwt(null);
-        setCurrentUser(null);
+        handleLogout();
       }
     } catch (err) {
       console.error(err);
     }
-  }, [appJwt, activeRoomId]);
+  }, [appJwt, activeRoomId, handleLogout]);
 
   // Fetch Consolidated Room Dashboard
   const fetchRoomDashboard = useCallback(async (roomId) => {
@@ -148,10 +245,13 @@ export default function App() {
     }
   }, [appJwt]);
 
+  const [loadingFiles, setLoadingFiles] = useState(false);
+
   // Fetch Files inside Current Folder
   const fetchDirectoryFiles = useCallback(async () => {
     if (!appJwt || !activeRoomId) return;
 
+    setLoadingFiles(true);
     if (searchQuery.trim().length > 0) {
       try {
         const res = await fetch(`${BACKEND_URL}/files/room/${activeRoomId}/search?q=${encodeURIComponent(searchQuery.trim())}`, {
@@ -163,6 +263,8 @@ export default function App() {
         }
       } catch (err) {
         console.error(err);
+      } finally {
+        setLoadingFiles(false);
       }
       return;
     }
@@ -178,6 +280,8 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoadingFiles(false);
     }
   }, [appJwt, activeRoomId, currentFolderId, searchQuery]);
 
@@ -203,15 +307,19 @@ export default function App() {
     }
   }, [currentFolderId, searchQuery, activeRoomId, fetchDirectoryFiles]);
 
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
   // Handle Google OAuth Sign In / Sign Up Code Exchange
   const handleGoogleAuth = (mode) => {
     setError(null);
+    setIsAuthenticating(true);
     if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
       setTimeout(() => {
         if (window.google && window.google.accounts && window.google.accounts.oauth2) {
           handleGoogleAuth(mode);
         } else {
           setError('Google Identity Services SDK is still loading. Please check your internet connection or refresh the page.');
+          setIsAuthenticating(false);
         }
       }, 300);
       return;
@@ -224,6 +332,7 @@ export default function App() {
       callback: async (response) => {
         if (response.error) {
           setError(`Google Auth Error: ${response.error_description || response.error}`);
+          setIsAuthenticating(false);
           return;
         }
 
@@ -251,7 +360,11 @@ export default function App() {
             }
           } catch (err) {
             setError('Server connection error during authentication');
+          } finally {
+            setIsAuthenticating(false);
           }
+        } else {
+          setIsAuthenticating(false);
         }
       }
     });
@@ -339,22 +452,39 @@ export default function App() {
 
   // Handlers for File Actions
   const handleCreateFolder = async (folderName) => {
-    const res = await fetch(`${BACKEND_URL}/files/room/${activeRoomId}/folder`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${appJwt}`
-      },
-      body: JSON.stringify({ name: folderName, parent_id: currentFolderId })
+    setBlockingOverlay({
+      title: 'Creating Folder',
+      message: `Creating "${folderName}"...`,
+      subtext: 'Updating directory tree structure...'
     });
-    if (res.ok) {
-      fetchDirectoryFiles();
-      showToast(`Created folder "${folderName}"`);
+    try {
+      const res = await fetch(`${BACKEND_URL}/files/room/${activeRoomId}/folder`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${appJwt}`
+        },
+        body: JSON.stringify({ name: folderName, parent_id: currentFolderId })
+      });
+      if (res.ok) {
+        await fetchDirectoryFiles();
+        showToast(`Created folder "${folderName}"`);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBlockingOverlay(null);
     }
   };
 
   const handleDeleteFile = async (item) => {
-    if (!window.confirm(`Are you sure you want to delete "${item.name}"?`)) return;
+    if (!item) return;
+
+    setBlockingOverlay({
+      title: `Deleting ${item.is_folder ? 'Folder' : 'File'}`,
+      message: `Deleting "${item.name}"...`,
+      subtext: 'Re-indexing directory structure and freeing storage quota...'
+    });
 
     try {
       const res = await fetch(`${BACKEND_URL}/files/${item.id}`, {
@@ -362,46 +492,19 @@ export default function App() {
         headers: { Authorization: `Bearer ${appJwt}` }
       });
       if (res.ok) {
-        fetchDirectoryFiles();
-        fetchRoomDashboard(activeRoomId);
+        await fetchDirectoryFiles();
+        await fetchRoomDashboard(activeRoomId);
         showToast(`Deleted ${item.is_folder ? 'folder' : 'file'} "${item.name}"`);
+      } else {
+        const err = await res.json();
+        showToast(err.detail || `Failed to delete "${item.name}"`, 4000);
       }
     } catch (err) {
       console.error(err);
+      showToast(`Error deleting "${item.name}"`, 4000);
+    } finally {
+      setBlockingOverlay(null);
     }
-  };
-
-  const handleDownloadFile = (item) => {
-    if (!item || item.is_folder) return;
-    showToast(`Downloading "${item.name}"...`);
-    fetch(`${BACKEND_URL}/files/${item.id}/download`, {
-      headers: { Authorization: `Bearer ${appJwt}` }
-    })
-      .then(res => {
-        if (!res.ok) throw new Error('Download failed');
-        return res.blob();
-      })
-      .then(blob => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = item.name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-      })
-      .catch(err => {
-        console.error(err);
-        showToast(`Failed to download "${item.name}"`);
-      });
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('app_jwt');
-    setAppJwt(null);
-    setCurrentUser(null);
-    setIsProfileModalOpen(false);
   };
 
   const handleOpenDeleteAccount = () => {
@@ -423,6 +526,7 @@ export default function App() {
         userNameInput={userNameInput}
         setUserNameInput={setUserNameInput}
         error={error}
+        isAuthenticating={isAuthenticating}
       />
     );
   }
@@ -443,9 +547,15 @@ export default function App() {
           fontSize: '0.85rem',
           fontWeight: 600,
           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
-          zIndex: 200
+          zIndex: 200,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
         }}>
-          {toastMessage}
+          {toastMessage.includes('Preparing & downloading') && (
+            <RefreshCw className="animate-spin" size={16} color="var(--emerald-primary)" />
+          )}
+          <span>{toastMessage}</span>
         </div>
       )}
 
@@ -491,7 +601,11 @@ export default function App() {
             setIsPreviewModalOpen(true);
           }}
           onDownloadFile={handleDownloadFile}
-          onDeleteFile={handleDeleteFile}
+          onDeleteFile={(item) => {
+            setFileToDelete(item);
+            setIsConfirmDeleteModalOpen(true);
+          }}
+          loadingFiles={loadingFiles}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
         />
@@ -575,6 +689,7 @@ export default function App() {
         file={fileToPreview}
         appJwt={appJwt}
         BACKEND_URL={BACKEND_URL}
+        onDownloadFile={handleDownloadFile}
       />
 
       <FileInfoDrawer
@@ -607,6 +722,35 @@ export default function App() {
         onClose={() => setIsNewFolderModalOpen(false)}
         onCreateFolder={handleCreateFolder}
       />
+
+      <ConfirmDeleteModal
+        isOpen={isConfirmDeleteModalOpen}
+        onClose={() => {
+          setIsConfirmDeleteModalOpen(false);
+          setFileToDelete(null);
+        }}
+        item={fileToDelete}
+        onConfirmDelete={handleDeleteFile}
+      />
+
+      {/* Screen-Wide Blocking Operation Overlay */}
+      {blockingOverlay && (
+        <div className="blocking-overlay">
+          <div className="blocking-overlay-card">
+            <RefreshCw className="animate-spin blocking-overlay-icon" size={38} />
+            <div className="blocking-overlay-title">{blockingOverlay.title || 'Processing Action'}</div>
+            <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', margin: '4px 0 8px', fontWeight: 500 }}>
+              {blockingOverlay.message}
+            </div>
+            {blockingOverlay.subtext && (
+              <div className="blocking-overlay-subtext">{blockingOverlay.subtext}</div>
+            )}
+            <div className="blocking-progress-track">
+              <div className="blocking-progress-fill" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

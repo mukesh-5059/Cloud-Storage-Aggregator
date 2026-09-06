@@ -603,6 +603,103 @@ input, textarea {
   color: var(--amber-status);
 }
 
+/* File Grid View */
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 8px 4px;
+}
+
+.grid-card {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.grid-card:hover {
+  background-color: var(--bg-elevated);
+  border-color: var(--border-medium);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.grid-card.selected {
+  border-color: var(--emerald-primary);
+  background-color: var(--emerald-bg-tint);
+  box-shadow: 0 0 12px var(--emerald-glow);
+}
+
+.grid-card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  transition: all var(--transition-fast);
+}
+
+.grid-card-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.grid-card:hover .grid-card-icon {
+  border-color: var(--emerald-primary);
+}
+
+.grid-card.selected .grid-card-icon {
+  background-color: rgba(62, 207, 142, 0.15);
+  border-color: var(--emerald-primary);
+}
+
+.grid-card-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-main);
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.grid-card-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.grid-card-host {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  background: var(--bg-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  margin-top: 6px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Member Sidebar (Right - 260px) */
 .member-sidebar {
   width: var(--sidebar-width);
@@ -889,4 +986,89 @@ input, textarea {
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.98); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* Screen-Wide Blocking Loading Overlay */
+.blocking-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(8, 11, 14, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.blocking-overlay-card {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--emerald-primary);
+  border-radius: 16px;
+  padding: 36px 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85), 0 0 30px var(--emerald-glow);
+  max-width: 440px;
+  width: 90vw;
+}
+
+.blocking-overlay-icon {
+  margin-bottom: 16px;
+  color: var(--emerald-primary);
+}
+
+.blocking-overlay-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
+}
+
+.blocking-overlay-subtext {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  line-height: 1.4;
+}
+
+.blocking-progress-track {
+  width: 100%;
+  height: 6px;
+  background-color: var(--bg-surface);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  position: relative;
+}
+
+.blocking-progress-fill {
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, var(--emerald-dark), var(--emerald-primary));
+  border-radius: 999px;
+  position: absolute;
+  animation: indeterminateBar 1.5s infinite ease-in-out;
+}
+
+@keyframes indeterminateBar {
+  0% {
+    left: -40%;
+    width: 30%;
+  }
+  50% {
+    left: 35%;
+    width: 45%;
+  }
+  100% {
+    left: 100%;
+    width: 30%;
+  }
 }
