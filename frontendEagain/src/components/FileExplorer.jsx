@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FolderPlus, Search, LayoutList, LayoutGrid, Folder, FileText, Image as ImageIcon, 
-  Video, Music, Archive, Eye, FolderInput, Info, Trash2, ChevronRight 
+  Video, Music, Archive, Eye, FolderInput, Info, Trash2, ChevronRight,
+  Download, ExternalLink, MousePointerClick, Edit2
 } from 'lucide-react';
 
 function formatBytes(bytes, decimals = 1) {
@@ -49,9 +50,11 @@ export default function FileExplorer({
   onNavigateBreadcrumb,
   onNavigateFolder,
   onOpenNewFolderModal,
+  onOpenRenameModal,
   onOpenMoveModal,
   onOpenInfoDrawer,
   onOpenPreview,
+  onDownloadFile,
   onDeleteFile,
   searchQuery,
   onSearchChange
@@ -143,51 +146,89 @@ export default function FileExplorer({
         </div>
       </div>
 
-      {/* Selected Item Action Bar */}
-      {selectedItem && (
-        <div className="selection-action-bar">
-          <div className="selection-info">
-            <span>Selected: {selectedItem.name}</span>
+      {/* Selected Item Action Bar (Reserved Height layout container) */}
+      <div className={`selection-action-bar ${selectedItem ? 'active' : 'empty'}`}>
+        {selectedItem ? (
+          <>
+            <div className="selection-info">
+              <span>Selected: {selectedItem.name}</span>
+            </div>
+
+            <div className="selection-actions">
+              <button
+                className="action-chip"
+                onClick={() => handleRowDoubleClick(selectedItem)}
+              >
+                <Eye size={14} />
+                <span>{selectedItem.is_folder ? 'Open Folder' : 'Preview'}</span>
+              </button>
+
+              {!selectedItem.is_folder && (
+                <button
+                  className="action-chip"
+                  onClick={() => onDownloadFile(selectedItem)}
+                >
+                  <Download size={14} />
+                  <span>Download</span>
+                </button>
+              )}
+
+              {!selectedItem.is_folder && selectedItem.gdrive_file_id && (
+                <a
+                  href={`https://drive.google.com/file/d/${selectedItem.gdrive_file_id}/view`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="action-chip"
+                  style={{ textDecoration: 'none' }}
+                >
+                  <ExternalLink size={14} />
+                  <span>Open in Drive</span>
+                </a>
+              )}
+
+              <button
+                className="action-chip"
+                onClick={() => onOpenRenameModal(selectedItem)}
+              >
+                <Edit2 size={14} />
+                <span>Rename</span>
+              </button>
+
+              <button
+                className="action-chip"
+                onClick={() => onOpenMoveModal(selectedItem)}
+              >
+                <FolderInput size={14} />
+                <span>Move</span>
+              </button>
+
+              <button
+                className="action-chip"
+                onClick={() => onOpenInfoDrawer(selectedItem)}
+              >
+                <Info size={14} />
+                <span>Info</span>
+              </button>
+
+              <button
+                className="action-chip destructive"
+                onClick={() => {
+                  onDeleteFile(selectedItem);
+                  setSelectedId(null);
+                }}
+              >
+                <Trash2 size={14} />
+                <span>Delete</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="selection-placeholder" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.6 }}>
+            <MousePointerClick size={14} />
+            <span>Select an item to view options</span>
           </div>
-
-          <div className="selection-actions">
-            <button
-              className="action-chip"
-              onClick={() => handleRowDoubleClick(selectedItem)}
-            >
-              <Eye size={14} />
-              <span>{selectedItem.is_folder ? 'Open Folder' : 'Preview'}</span>
-            </button>
-
-            <button
-              className="action-chip"
-              onClick={() => onOpenMoveModal(selectedItem)}
-            >
-              <FolderInput size={14} />
-              <span>Move</span>
-            </button>
-
-            <button
-              className="action-chip"
-              onClick={() => onOpenInfoDrawer(selectedItem)}
-            >
-              <Info size={14} />
-              <span>Info</span>
-            </button>
-
-            <button
-              className="action-chip destructive"
-              onClick={() => {
-                onDeleteFile(selectedItem);
-                setSelectedId(null);
-              }}
-            >
-              <Trash2 size={14} />
-              <span>Delete</span>
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* File Explorer Table View */}
       <div className="file-table-wrapper">

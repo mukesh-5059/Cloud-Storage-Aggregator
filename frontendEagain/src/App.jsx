@@ -15,6 +15,7 @@ import UserProfileModal from './components/modals/UserProfileModal';
 import NewFolderModal from './components/modals/NewFolderModal';
 import UploadFileModal from './components/modals/UploadFileModal';
 import DeleteAccountModal from './components/modals/DeleteAccountModal';
+import RenameItemModal from './components/modals/RenameItemModal';
 
 const BACKEND_URL = 'http://localhost:8000';
 const GOOGLE_CLIENT_ID = '338846147570-nqc50noev8fn4ma36hrpgaltq7jr43k4.apps.googleusercontent.com';
@@ -47,11 +48,13 @@ export default function App() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
 
   // Selected file targets for modals
   const [fileToMove, setFileToMove] = useState(null);
+  const [fileToRename, setFileToRename] = useState(null);
   const [fileToPreview, setFileToPreview] = useState(null);
   const [fileForInfo, setFileForInfo] = useState(null);
 
@@ -71,6 +74,7 @@ export default function App() {
         setIsUploadModalOpen(false);
         setIsNewFolderModalOpen(false);
         setIsMoveModalOpen(false);
+        setIsRenameModalOpen(false);
         setIsPreviewModalOpen(false);
         setIsInfoDrawerOpen(false);
       }
@@ -367,6 +371,32 @@ export default function App() {
     }
   };
 
+  const handleDownloadFile = (item) => {
+    if (!item || item.is_folder) return;
+    showToast(`Downloading "${item.name}"...`);
+    fetch(`${BACKEND_URL}/files/${item.id}/download`, {
+      headers: { Authorization: `Bearer ${appJwt}` }
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Download failed');
+        return res.blob();
+      })
+      .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = item.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch(err => {
+        console.error(err);
+        showToast(`Failed to download "${item.name}"`);
+      });
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('app_jwt');
     setAppJwt(null);
@@ -444,6 +474,10 @@ export default function App() {
           onNavigateBreadcrumb={handleNavigateBreadcrumb}
           onNavigateFolder={handleNavigateFolder}
           onOpenNewFolderModal={() => setIsNewFolderModalOpen(true)}
+          onOpenRenameModal={(item) => {
+            setFileToRename(item);
+            setIsRenameModalOpen(true);
+          }}
           onOpenMoveModal={(item) => {
             setFileToMove(item);
             setIsMoveModalOpen(true);
@@ -456,6 +490,7 @@ export default function App() {
             setFileToPreview(item);
             setIsPreviewModalOpen(true);
           }}
+          onDownloadFile={handleDownloadFile}
           onDeleteFile={handleDeleteFile}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -512,6 +547,21 @@ export default function App() {
         onMoveSuccess={() => {
           fetchDirectoryFiles();
           showToast('Item moved successfully');
+        }}
+        BACKEND_URL={BACKEND_URL}
+      />
+
+      <RenameItemModal
+        isOpen={isRenameModalOpen}
+        onClose={() => {
+          setIsRenameModalOpen(false);
+          setFileToRename(null);
+        }}
+        fileItem={fileToRename}
+        appJwt={appJwt}
+        onRenameSuccess={(updatedItem) => {
+          fetchDirectoryFiles();
+          showToast(`Renamed to "${updatedItem.name}"`);
         }}
         BACKEND_URL={BACKEND_URL}
       />

@@ -75,6 +75,10 @@ class FolderCreateRequest(BaseModel):
 class FileMoveRequest(BaseModel):
     new_parent_id: Optional[int] = None
 
+class FileRenameRequest(BaseModel):
+    new_name: str
+
+
 class FileItemResponse(BaseModel):
     id: int
     room_id: int

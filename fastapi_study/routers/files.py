@@ -12,6 +12,7 @@ from schemas import (
     FileItemResponse,
     FolderCreateRequest,
     FileMoveRequest,
+    FileRenameRequest,
     UploadIntentRequest,
     UploadIntentResponse,
     UploadCompleteRequest
@@ -379,6 +380,56 @@ def move_file(
     db.refresh(item)
     logger.info(f"Moved item ID {item.id} ('{item.name}') to parent_id {item.parent_id}")
     return item
+
+
+@router.patch("/{file_id}/rename", response_model=FileItemResponse)
+def rename_file(
+    file_id: int,
+    payload: FileRenameRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    item = db.query(FileItem).filter(FileItem.id == file_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File item not found")
+
+    check_membership(current_user.id, item.room_id, db)
+
+    new_name = payload.new_name.strip()
+    if not new_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File name cannot be empty")
+
+    old_name = item.name
+
+    if not item.is_folder and item.gdrive_file_id and item.storage_user_id:
+        storage_user = db.query(User).filter(User.id == item.storage_user_id).first()
+        access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
+
+        if access_token:
+            try:
+                drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}"
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                }
+                gdrive_res = requests.patch(drive_url, headers=headers, data=json.dumps({"name": new_name}))
+                if gdrive_res.status_code == 200:
+                    logger.info(f"Renamed file {item.gdrive_file_id} on Google Drive to '{new_name}'")
+                else:
+                    logger.warning(f"Failed to rename file on Google Drive ({gdrive_res.status_code}): {gdrive_res.text}")
+            except Exception as e:
+                logger.warning(f"Error calling Google Drive API to rename file {item.gdrive_file_id}: {e}")
+
+    item.name = new_name
+    db.commit()
+    db.refresh(item)
+
+    item.uploader_name = item.uploader.name if item.uploader else "Unknown"
+    item.host_name = item.storage_user.name if item.storage_user else "Unknown"
+
+    logger.info(f"Renamed item ID {item.id} from '{old_name}' to '{new_name}'")
+    return item
+
 
 
 def delete_item_recursively(item: FileItem, db: Session):

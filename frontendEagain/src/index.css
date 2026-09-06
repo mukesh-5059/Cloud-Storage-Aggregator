@@ -478,15 +478,24 @@ input, textarea {
   background: var(--emerald-bg-tint);
 }
 
-/* Selected Items Context Action Bar */
+/* Selected Items Context Action Bar (Fixed Reserved Height) */
 .selection-action-bar {
-  background-color: rgba(62, 207, 142, 0.08);
-  border-bottom: 1px solid var(--border-emerald);
-  padding: 10px 24px;
+  height: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 0.85rem;
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.selection-action-bar.active {
+  background-color: rgba(62, 207, 142, 0.08);
+  border-bottom: 1px solid var(--border-emerald);
 }
 
 .selection-info {
