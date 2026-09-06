@@ -14,6 +14,7 @@ import FileInfoDrawer from './components/modals/FileInfoDrawer';
 import UserProfileModal from './components/modals/UserProfileModal';
 import NewFolderModal from './components/modals/NewFolderModal';
 import UploadFileModal from './components/modals/UploadFileModal';
+import DeleteAccountModal from './components/modals/DeleteAccountModal';
 
 const BACKEND_URL = 'http://localhost:8000';
 const GOOGLE_CLIENT_ID = '338846147570-nqc50noev8fn4ma36hrpgaltq7jr43k4.apps.googleusercontent.com';
@@ -42,6 +43,7 @@ export default function App() {
   const [isCreateJoinModalOpen, setIsCreateJoinModalOpen] = useState(false);
   const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
@@ -65,6 +67,7 @@ export default function App() {
         setIsCreateJoinModalOpen(false);
         setIsAllocateModalOpen(false);
         setIsProfileModalOpen(false);
+        setIsDeleteAccountModalOpen(false);
         setIsUploadModalOpen(false);
         setIsNewFolderModalOpen(false);
         setIsMoveModalOpen(false);
@@ -371,20 +374,15 @@ export default function App() {
     setIsProfileModalOpen(false);
   };
 
-  const handleDeleteAccount = async () => {
-    if (!window.confirm('WARNING: Are you sure you want to delete your account? This will revoke Google tokens and delete your data.')) return;
-    try {
-      const res = await fetch(`${BACKEND_URL}/users/me`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${appJwt}` }
-      });
-      if (res.ok) {
-        handleLogout();
-        showToast('Account successfully deleted');
-      }
-    } catch (err) {
-      console.error(err);
-    }
+  const handleOpenDeleteAccount = () => {
+    setIsProfileModalOpen(false);
+    setIsDeleteAccountModalOpen(true);
+  };
+
+  const handleAccountDeleted = (result) => {
+    setIsDeleteAccountModalOpen(false);
+    handleLogout();
+    showToast(`Account successfully deleted (${result.migrated_files_count || 0} files migrated, ${result.cascaded_files_count || 0} files removed)`);
   };
 
   // If unauthenticated, render AuthScreen
@@ -543,7 +541,15 @@ export default function App() {
         onClose={() => setIsProfileModalOpen(false)}
         user={currentUser}
         onLogout={handleLogout}
-        onDeleteAccount={handleDeleteAccount}
+        onDeleteAccount={handleOpenDeleteAccount}
+      />
+
+      <DeleteAccountModal
+        isOpen={isDeleteAccountModalOpen}
+        onClose={() => setIsDeleteAccountModalOpen(false)}
+        appJwt={appJwt}
+        BACKEND_URL={BACKEND_URL}
+        onAccountDeleted={handleAccountDeleted}
       />
 
       <NewFolderModal

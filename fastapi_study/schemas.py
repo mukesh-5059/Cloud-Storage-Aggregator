@@ -112,4 +112,24 @@ class UploadCompleteRequest(BaseModel):
     parent_id: Optional[int] = None
     storage_user_id: int
 
+class RoomDeletionPreview(BaseModel):
+    room_id: int
+    room_name: str
+    migratable_count: int
+    migratable_bytes: int
+    cascaded_count: int
+    cascaded_bytes: int
+    ownership_transferred_to: Optional[str] = None
+    room_deleted_as_sole_member: bool = False
+
+class AccountDeletionPreviewResponse(BaseModel):
+    total_hosted_files: int
+    total_hosted_bytes: int
+    migratable_files_count: int
+    migratable_bytes: int
+    cascaded_files_count: int
+    cascaded_bytes: int
+    rooms_breakdown: List[RoomDeletionPreview]
+
+
 

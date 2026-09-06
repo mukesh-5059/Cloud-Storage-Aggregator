@@ -28,7 +28,7 @@ class User(Base):
     storage_usage = Column(BigInteger, nullable=True)
 
     created_rooms = relationship("Room", back_populates="owner")
-    room_memberships = relationship("UserRoom", back_populates="user")
+    room_memberships = relationship("UserRoom", back_populates="user", cascade="all, delete-orphan")
     uploaded_files = relationship("FileItem", foreign_keys="FileItem.uploader_id", back_populates="uploader")
     hosted_files = relationship("FileItem", foreign_keys="FileItem.storage_user_id", back_populates="storage_user")
 
@@ -41,8 +41,8 @@ class Room(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     owner = relationship("User", back_populates="created_rooms")
-    user_memberships = relationship("UserRoom", back_populates="room")
-    files = relationship("FileItem", back_populates="room")
+    user_memberships = relationship("UserRoom", back_populates="room", cascade="all, delete-orphan")
+    files = relationship("FileItem", back_populates="room", cascade="all, delete-orphan")
 
 class FileItem(Base):
     __tablename__ = "file_items"
