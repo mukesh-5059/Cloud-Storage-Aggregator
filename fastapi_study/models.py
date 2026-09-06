@@ -10,6 +10,7 @@ class UserRoom(Base):
     room_id = Column(Integer, ForeignKey("rooms.id"), primary_key=True)
     allocated_bytes = Column(BigInteger, default=0, nullable=False)
     used_bytes = Column(BigInteger, default=0, nullable=False)
+    files_hosted_count = Column(Integer, default=0, nullable=False)
     gdrive_folder_id = Column(String, nullable=True)
 
     user = relationship("User", back_populates="room_memberships")

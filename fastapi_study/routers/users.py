@@ -53,6 +53,7 @@ def delete_my_account(
         if target_host:
             # Re-host file on target_host
             target_host.used_bytes += file_item.size_bytes
+            target_host.files_hosted_count += 1
             file_item.storage_user_id = target_host.user_id
             file_item.gdrive_file_id = f"gdrive_file_{file_item.room_id}_{target_host.user_id}_{file_item.name}"
             migrated_count += 1

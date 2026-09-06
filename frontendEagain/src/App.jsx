@@ -192,25 +192,33 @@ export default function App() {
     }
   };
 
-  const selectRoom = async (room) => {
-    setSelectedRoom(room);
-    if (!room) {
-      setRoomMembers([]);
-      return;
-    }
+  const fetchRoomDashboard = async (roomId) => {
+    if (!roomId || !appJwt) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/rooms/${room.id}/users`, {
+      const res = await fetch(`${BACKEND_URL}/rooms/${roomId}/dashboard`, {
         headers: { Authorization: `Bearer ${appJwt}` }
       });
       const data = await res.json();
       if (res.ok) {
-        setRoomMembers(data);
+        setSelectedRoom(data.room);
+        setRoomMembers(data.members);
+        // Returns consolidated room dashboard object
+        return data;
       } else {
-        setError(data.detail || 'Failed to fetch room members');
+        setError(data.detail || 'Failed to load room dashboard');
       }
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  const selectRoom = async (room) => {
+    if (!room) {
+      setSelectedRoom(null);
+      setRoomMembers([]);
+      return;
+    }
+    fetchRoomDashboard(room.id);
   };
 
   const handleCreateRoomSubmit = async (name, password) => {
@@ -327,7 +335,7 @@ export default function App() {
               activeRoom={selectedRoom}
               appJwt={appJwt}
               onOpenAllocateModal={() => setIsAllocateModalOpen(true)}
-              refreshTrigger={copiedCode}
+              onRefreshDashboard={() => selectedRoom && fetchRoomDashboard(selectedRoom.id)}
             />
 
             {/* Central Filesystem Explorer (Below Hero) */}
@@ -335,7 +343,7 @@ export default function App() {
               activeRoom={selectedRoom}
               currentUser={currentUser}
               appJwt={appJwt}
-              onTriggerRefresh={() => setCopiedCode(prev => !prev)}
+              onTriggerRefresh={() => selectedRoom && fetchRoomDashboard(selectedRoom.id)}
             />
           </div>
 
@@ -365,7 +373,7 @@ export default function App() {
         currentUser={currentUser}
         onAllocateSuccess={(bytes) => {
           showToast(`Allocated quota updated!`);
-          setCopiedCode(prev => !prev);
+          if (selectedRoom) fetchRoomDashboard(selectedRoom.id);
         }}
       />
 

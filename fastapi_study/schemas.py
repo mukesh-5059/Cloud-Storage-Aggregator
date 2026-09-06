@@ -17,7 +17,8 @@ class UserResponse(BaseModel):
     storage_limit: Optional[int] = None
     storage_usage: Optional[int] = None
     allocated_bytes: Optional[int] = 0
-    files_count: Optional[int] = 0
+    used_bytes: Optional[int] = 0
+    files_hosted_count: Optional[int] = 0
 
     class Config:
         from_attributes = True

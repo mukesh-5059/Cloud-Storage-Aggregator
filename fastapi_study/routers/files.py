@@ -101,8 +101,11 @@ async def upload_file(
     content = await file.read()
     file_size = len(content)
 
-    # Find room contributor with capacity in user_rooms
+    # Find room contributor with highest available free capacity in user_rooms
     memberships = db.query(UserRoom).filter(UserRoom.room_id == room_id).all()
+
+    # Sort contributors by highest available free capacity (allocated_bytes - used_bytes)
+    memberships.sort(key=lambda m: (m.allocated_bytes - m.used_bytes), reverse=True)
 
     target_contrib = None
     for m in memberships:
@@ -130,8 +133,9 @@ async def upload_file(
         gdrive_file_id=mock_gdrive_file_id
     )
 
-    # Deduct quota from target contributor
+    # Deduct quota from target contributor & increment files hosted count
     target_contrib.used_bytes += file_size
+    target_contrib.files_hosted_count += 1
 
     db.add(file_item)
     db.commit()
@@ -173,7 +177,7 @@ def delete_item_recursively(item: FileItem, db: Session):
         for child in children:
             delete_item_recursively(child, db)
     else:
-        # Reclaim storage quota from physical host contributor
+        # Reclaim storage quota and decrement files_hosted_count from physical host contributor
         if item.storage_user_id:
             membership = db.query(UserRoom).filter(
                 UserRoom.room_id == item.room_id,
@@ -181,6 +185,7 @@ def delete_item_recursively(item: FileItem, db: Session):
             ).first()
             if membership:
                 membership.used_bytes = max(0, membership.used_bytes - item.size_bytes)
+                membership.files_hosted_count = max(0, membership.files_hosted_count - 1)
 
     db.delete(item)
 

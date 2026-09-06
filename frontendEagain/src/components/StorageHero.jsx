@@ -7,7 +7,7 @@ export default function StorageHero({
   activeRoom,
   appJwt,
   onOpenAllocateModal,
-  refreshTrigger
+  onRefreshDashboard
 }) {
   const [storageData, setStorageData] = useState({ total_allocated_bytes: 0, total_used_bytes: 0 });
   const fileInputRef = useRef(null);
@@ -18,17 +18,17 @@ export default function StorageHero({
     } else {
       setStorageData({ total_allocated_bytes: 0, total_used_bytes: 0 });
     }
-  }, [activeRoom, appJwt, refreshTrigger]);
+  }, [activeRoom, appJwt]);
 
   const fetchStorageSummary = async () => {
     if (!activeRoom || !appJwt) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/rooms/${activeRoom.id}/storage`, {
+      const res = await fetch(`${BACKEND_URL}/rooms/${activeRoom.id}/dashboard`, {
         headers: { Authorization: `Bearer ${appJwt}` }
       });
       const data = await res.json();
       if (res.ok) {
-        setStorageData(data);
+        setStorageData(data.storage);
       }
     } catch (err) {
       console.error("Failed to fetch storage summary:", err);
@@ -50,7 +50,7 @@ export default function StorageHero({
       });
       if (res.ok) {
         fetchStorageSummary();
-        window.location.reload(); // Simple refresh to show new file
+        if (onRefreshDashboard) onRefreshDashboard();
       } else {
         const errData = await res.json();
         alert(errData.detail || 'Upload failed');

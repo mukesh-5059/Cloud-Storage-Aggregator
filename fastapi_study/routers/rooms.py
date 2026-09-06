@@ -158,8 +158,8 @@ def contribute_storage(
     logger.info(f"Storage allocation updated for User ID {current_user.id} in Room ID {room_id}: {membership.allocated_bytes} bytes")
     return membership
 
-@router.get("/{room_id}/storage")
-def get_room_storage_summary(
+@router.get("/{room_id}/dashboard")
+def get_room_dashboard(
     room_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -170,27 +170,63 @@ def get_room_storage_summary(
     ).first()
 
     if not membership:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Not a room member")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You are not a member of this room")
 
     room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+
     total_allocated = sum(m.allocated_bytes for m in room.user_memberships)
     total_used = sum(m.used_bytes for m in room.user_memberships)
 
-    contributors = [
+    members_list = [
         {
-            "user_id": m.user_id,
-            "user_name": m.user.name,
-            "user_email": m.user.email,
+            "id": m.user.id,
+            "email": m.user.email,
+            "name": m.user.name,
+            "storage_limit": m.user.storage_limit,
+            "storage_usage": m.user.storage_usage,
             "allocated_bytes": m.allocated_bytes,
             "used_bytes": m.used_bytes,
-            "gdrive_folder_id": m.gdrive_folder_id
+            "files_hosted_count": m.files_hosted_count
         }
         for m in room.user_memberships
     ]
 
+    root_files = db.query(FileItem).filter(
+        FileItem.room_id == room_id,
+        FileItem.parent_id.is_(None)
+    ).all()
+
+    root_files_data = []
+    for item in root_files:
+        root_files_data.append({
+            "id": item.id,
+            "room_id": item.room_id,
+            "parent_id": item.parent_id,
+            "name": item.name,
+            "is_folder": item.is_folder,
+            "size_bytes": item.size_bytes,
+            "mime_type": item.mime_type,
+            "uploader_id": item.uploader_id,
+            "storage_user_id": item.storage_user_id,
+            "uploader_name": item.uploader.name if item.uploader else "Unknown",
+            "host_name": item.storage_user.name if item.storage_user else "Unknown",
+            "gdrive_file_id": item.gdrive_file_id,
+            "created_at": item.created_at
+        })
+
+    logger.info(f"Retrieved consolidated Dashboard for Room ID {room_id} (User ID {current_user.id})")
     return {
-        "room_id": room_id,
-        "total_allocated_bytes": total_allocated,
-        "total_used_bytes": total_used,
-        "contributors": contributors
+        "room": {
+            "id": room.id,
+            "name": room.name,
+            "owner_id": room.owner_id
+        },
+        "storage": {
+            "total_allocated_bytes": total_allocated,
+            "total_used_bytes": total_used
+        },
+        "members": members_list,
+        "root_files": root_files_data
     }
