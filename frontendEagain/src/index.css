@@ -1,5 +1,4 @@
 /* RoomVault - Supabase Tech Slate & Emerald Design System */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
   /* Canvas & Panel Colors */
@@ -10,6 +9,8 @@
   --bg-elevated: #1A2026;
   --bg-hover: #202730;
   --bg-active: #26303C;
+  --bg-overlay: rgba(6, 9, 12, 0.8);
+  --bg-preview-overlay: rgba(4, 6, 8, 0.9);
 
   /* Hairline Borders */
   --border-subtle: #1E252D;
@@ -21,21 +22,23 @@
   --emerald-primary: #3ECF8E;
   --emerald-hover: #4EFA9E;
   --emerald-dark: #10B981;
-  --emerald-glow: rgba(62, 207, 142, 0.15);
-  --emerald-bg-tint: rgba(62, 207, 142, 0.1);
+  --emerald-glow: rgba(62, 207, 142, 0.2);
+  --emerald-bg-tint: rgba(62, 207, 142, 0.12);
 
   /* Status Colors */
   --amber-status: #F59E0B;
-  --amber-bg-tint: rgba(245, 158, 11, 0.12);
+  --amber-bg-tint: rgba(245, 158, 11, 0.15);
   --red-status: #EF4444;
-  --red-bg-tint: rgba(239, 68, 68, 0.12);
+  --red-bg-tint: rgba(239, 68, 68, 0.15);
   --blue-status: #3B82F6;
+  --blue-bg-tint: rgba(59, 130, 246, 0.15);
 
-  /* Typography Colors */
-  --text-main: #F3F4F6;
-  --text-secondary: #9CA3AF;
-  --text-muted: #8A96A3;
-  --text-dim: #64707D;
+  /* Typography Colors (WCAG AA Compliant contrast against dark panels) */
+  --text-main: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-dim: #7F8EA3;
+  --text-on-emerald: #080B0E;
 
   /* Component Dimensions */
   --rail-width: 64px;
@@ -64,12 +67,38 @@ body {
 
 /* Custom Text Selection & Caret */
 ::selection {
-  background: rgba(62, 207, 142, 0.25);
-  color: #FFFFFF;
+  background: var(--emerald-bg-tint);
+  color: var(--text-main);
 }
 
 input, textarea {
   caret-color: var(--emerald-primary);
+}
+
+/* Accessibility Focus Indicator Ring */
+:focus-visible {
+  outline: 2px solid var(--emerald-primary);
+  outline-offset: 2px;
+}
+
+/* Toast Notification Banner */
+.toast-banner {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--emerald-primary);
+  border-radius: 8px;
+  padding: 10px 16px;
+  color: var(--emerald-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px var(--emerald-glow);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Custom Scrollbar Styling */
@@ -296,7 +325,7 @@ input, textarea {
   align-items: center;
   gap: 8px;
   background-color: var(--emerald-primary);
-  color: #080B0E;
+  color: var(--text-on-emerald);
   font-weight: 600;
   font-size: 0.85rem;
   padding: 8px 16px;
@@ -438,15 +467,14 @@ input, textarea {
   padding: 6px 36px 6px 32px;
   font-size: 0.85rem;
   color: var(--text-main);
-  width: 220px;
-  transition: all var(--transition-fast);
+  width: 240px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .search-input:focus {
   outline: none;
   border-color: var(--emerald-primary);
   box-shadow: 0 0 0 2px var(--emerald-glow);
-  width: 280px;
 }
 
 .search-shortcut-badge {
@@ -496,6 +524,41 @@ input, textarea {
 .selection-action-bar.active {
   background-color: rgba(62, 207, 142, 0.08);
   border-bottom: 1px solid var(--border-emerald);
+}
+
+.selection-placeholder {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.75;
+}
+
+.explorer-empty-state {
+  text-align: center;
+  padding: 48px 0;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.explorer-empty-icon {
+  margin-bottom: 4px;
+  opacity: 0.4;
+}
+
+.explorer-empty-title {
+  font-size: 0.9rem;
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.explorer-empty-subtext {
+  font-size: 0.78rem;
+  color: var(--text-dim);
 }
 
 .selection-info {
@@ -777,6 +840,33 @@ input, textarea {
   border: 1px solid var(--border-emerald);
 }
 
+/* Member Sidebar Details Drawer */
+.member-details-drawer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.member-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.member-detail-label {
+  color: var(--text-muted);
+}
+
+.member-detail-val {
+  color: var(--text-main);
+  font-weight: 500;
+}
+
 /* User Hover Popover Card */
 .user-hover-card {
   position: absolute;
@@ -828,7 +918,7 @@ input, textarea {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(6, 9, 12, 0.75);
+  background-color: var(--bg-overlay);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -936,7 +1026,7 @@ input, textarea {
 
 .modal-tab.active {
   background-color: var(--emerald-primary);
-  color: #080B0E;
+  color: var(--text-on-emerald);
   font-weight: 600;
 }
 
@@ -944,7 +1034,7 @@ input, textarea {
 .preview-modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(4, 6, 8, 0.85);
+  background-color: var(--bg-preview-overlay);
   backdrop-filter: blur(12px);
   display: flex;
   flex-direction: column;
@@ -980,7 +1070,7 @@ input, textarea {
   height: 100%;
   border: none;
   border-radius: 8px;
-  background-color: #000000;
+  background-color: var(--bg-rail);
 }
 
 @keyframes fadeIn {
@@ -1070,5 +1160,310 @@ input, textarea {
   100% {
     left: 100%;
     width: 30%;
+  }
+}
+
+/* ==========================================================================
+   RESPONSIVE DESIGN BREAKPOINTS & TOUCH TARGET ADAPTATIONS
+   ========================================================================== */
+
+.mobile-members-toggle {
+  display: none;
+}
+
+.mobile-sidebar-close {
+  display: none;
+}
+
+.member-sidebar-backdrop {
+  display: none;
+}
+
+/* Tablet Breakpoint (768px - 1023px) */
+@media (max-width: 1023px) {
+  :root {
+    --sidebar-width: 220px;
+  }
+
+  .storage-hero {
+    padding: 16px 20px;
+  }
+
+  .search-input {
+    width: 180px;
+  }
+
+  .search-input:focus {
+    width: 220px;
+  }
+}
+
+/* Mobile Breakpoint (< 768px) */
+@media (max-width: 767px) {
+  .app-shell {
+    position: relative;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* Nav Rail becomes sticky bottom bar on mobile (< 640px) or compact left bar */
+  .nav-rail {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+    height: 60px;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-right: none;
+    border-top: 1px solid var(--border-medium);
+    background-color: var(--bg-rail);
+    z-index: 90;
+  }
+
+  .rail-brand-logo {
+    display: none;
+  }
+
+  .rail-room-list {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+    overflow-x: auto;
+    padding: 4px 0;
+  }
+
+  .rail-item {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+  }
+
+  .rail-item.active::before {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: -4px;
+    width: auto;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+  }
+
+  .rail-action-btn, .rail-profile-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 10px;
+  }
+
+  .main-workspace {
+    height: calc(100vh - 60px);
+    height: calc(100dvh - 60px);
+    margin-bottom: 60px;
+  }
+
+  .mobile-members-toggle {
+    display: inline-flex;
+  }
+
+  .mobile-sidebar-close {
+    display: inline-flex;
+  }
+
+  /* Member Sidebar becomes a slide-out drawer on mobile */
+  .member-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 85vw;
+    height: 100vh;
+    z-index: 150;
+    box-shadow: -12px 0 36px rgba(0, 0, 0, 0.75);
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+  }
+
+  .member-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .member-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: var(--bg-overlay);
+    backdrop-filter: blur(4px);
+    z-index: 140;
+    animation: fadeIn 0.18s ease;
+  }
+
+  /* Storage Hero Adaptation */
+  .storage-hero {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .storage-hero-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .storage-hero-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .btn-emerald, .btn-slate {
+    flex: 1;
+    min-height: 42px;
+    justify-content: center;
+    font-size: 0.82rem;
+    padding: 8px 12px;
+  }
+
+  .btn-text-responsive {
+    display: inline;
+  }
+
+  /* Explorer Toolbar Adaptation */
+  .explorer-toolbar {
+    padding: 10px 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .breadcrumbs {
+    overflow-x: auto;
+    white-space: nowrap;
+    width: 100%;
+    padding-bottom: 2px;
+  }
+
+  .toolbar-controls {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .search-input-wrapper {
+    flex: 1;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .search-input:focus {
+    width: 100%;
+  }
+
+  .search-shortcut-badge {
+    display: none;
+  }
+
+  /* Selection Action Bar */
+  .selection-action-bar {
+    padding: 0 16px;
+    overflow-x: auto;
+    height: auto;
+    min-height: 48px;
+    padding: 8px 16px;
+  }
+
+  .selection-actions {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+    width: 100%;
+  }
+
+  .action-chip {
+    min-height: 38px;
+    padding: 6px 12px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* File Table Column Hiding for Mobile */
+  .file-table th:nth-child(3),
+  .file-table td:nth-child(3),
+  .file-table th:nth-child(5),
+  .file-table td:nth-child(5) {
+    display: none;
+  }
+
+  .file-table th:nth-child(1),
+  .file-table td:nth-child(1) {
+    width: 60%;
+  }
+
+  /* Modal Responsive Scaling */
+  .modal-content {
+    width: 92vw;
+    max-width: 440px;
+    padding: 20px 16px;
+    margin: auto;
+    max-height: 88vh;
+    overflow-y: auto;
+    border-radius: 14px;
+  }
+
+  .modal-tab {
+    min-height: 42px;
+  }
+
+  .close-btn {
+    min-width: 40px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Extra Small Screens (< 480px) */
+@media (max-width: 479px) {
+  .room-title {
+    font-size: 1.1rem;
+  }
+
+  .storage-used-val {
+    font-size: 1.2rem;
+  }
+
+  .btn-text-responsive {
+    display: none;
+  }
+
+  .file-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+}
+
+/* Touch Input Coarse Pointer Targets */
+@media (pointer: coarse) {
+  .rail-item,
+  .rail-action-btn,
+  .rail-profile-btn,
+  .btn-emerald,
+  .btn-slate,
+  .action-chip,
+  .modal-tab,
+  .close-btn {
+    min-height: 44px;
   }
 }

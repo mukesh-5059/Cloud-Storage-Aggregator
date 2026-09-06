@@ -1,5 +1,5 @@
 import React from 'react';
-import { UploadCloud, HardDriveDownload } from 'lucide-react';
+import { UploadCloud, HardDriveDownload, Users } from 'lucide-react';
 
 function formatBytes(bytes, decimals = 2) {
   if (bytes === 0 || !bytes) return '0 B';
@@ -10,7 +10,7 @@ function formatBytes(bytes, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-export default function StorageHero({ activeRoom, storageData, onOpenUploadModal, onOpenAllocateModal }) {
+export default function StorageHero({ activeRoom, storageData, onOpenUploadModal, onOpenAllocateModal, onToggleMobileMembers }) {
   if (!activeRoom) return null;
 
   const totalAllocated = storageData?.total_allocated_bytes || 0;
@@ -41,8 +41,13 @@ export default function StorageHero({ activeRoom, storageData, onOpenUploadModal
           </button>
           <button className="btn-slate" onClick={onOpenAllocateModal}>
             <HardDriveDownload size={18} />
-            <span>Allocate Quota</span>
+            <span className="btn-text-responsive">Allocate Quota</span>
           </button>
+          {onToggleMobileMembers && (
+            <button className="btn-slate mobile-members-toggle" onClick={onToggleMobileMembers} title="Toggle Room Members">
+              <Users size={18} />
+            </button>
+          )}
         </div>
       </div>
 

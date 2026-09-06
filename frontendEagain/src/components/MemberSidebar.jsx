@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Crown, HardDrive, FileText } from 'lucide-react';
+import { Crown, HardDrive, FileText, X } from 'lucide-react';
 
 function formatBytes(bytes, decimals = 1) {
   if (bytes === 0 || !bytes) return '0 B';
@@ -10,14 +10,23 @@ function formatBytes(bytes, decimals = 1) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-export default function MemberSidebar({ members, roomOwnerId, currentUserId }) {
+export default function MemberSidebar({ members, roomOwnerId, currentUserId, isMobileOpen, onCloseMobile }) {
   const [expandedMemberId, setExpandedMemberId] = useState(null);
 
   return (
-    <aside className="member-sidebar" aria-label="Room Members">
-      <div className="sidebar-header">
-        ROOM MEMBERS — {members ? members.length : 0}
-      </div>
+    <>
+      {isMobileOpen && (
+        <div className="member-sidebar-backdrop" onClick={onCloseMobile} aria-hidden="true" />
+      )}
+      <aside className={`member-sidebar ${isMobileOpen ? 'mobile-open' : ''}`} aria-label="Room Members">
+        <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>ROOM MEMBERS — {members ? members.length : 0}</span>
+          {onCloseMobile && (
+            <button className="close-btn mobile-sidebar-close" onClick={onCloseMobile} aria-label="Close members panel">
+              <X size={18} />
+            </button>
+          )}
+        </div>
 
       <div className="member-list">
         {members && members.map((member) => {
@@ -29,9 +38,7 @@ export default function MemberSidebar({ members, roomOwnerId, currentUserId }) {
             <div
               key={member.id}
               className={`member-card ${isExpanded ? 'expanded' : ''}`}
-              onClick={() => setExpandedMemberId(isExpanded ? null : member.id)}
-              onMouseEnter={() => setExpandedMemberId(member.id)}
-              onMouseLeave={() => setExpandedMemberId(null)}
+              onClick={() => setExpandedMemberId(prev => prev === member.id ? null : member.id)}
               style={{ cursor: 'pointer', flexDirection: 'column', alignItems: 'stretch' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -53,38 +60,29 @@ export default function MemberSidebar({ members, roomOwnerId, currentUserId }) {
 
               {/* Expanded Inline Member Profile Details */}
               {isExpanded && (
-                <div style={{
-                  marginTop: '10px',
-                  paddingTop: '10px',
-                  borderTop: '1px solid var(--border-subtle)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  fontSize: '0.78rem',
-                  color: 'var(--text-secondary)'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Email:</span>
-                    <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{member.email}</span>
+                <div className="member-details-drawer">
+                  <div className="member-detail-row">
+                    <span className="member-detail-label">Email:</span>
+                    <span className="member-detail-val">{member.email}</span>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Main User ID:</span>
+                  <div className="member-detail-row">
+                    <span className="member-detail-label">Main User ID:</span>
                     <span className="font-mono" style={{ color: 'var(--emerald-primary)' }}>#{member.id}</span>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Storage Allocated:</span>
+                  <div className="member-detail-row">
+                    <span className="member-detail-label">Storage Allocated:</span>
                     <span className="font-mono" style={{ color: 'var(--emerald-primary)' }}>{formatBytes(member.allocated_bytes || 0)}</span>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Storage Used:</span>
+                  <div className="member-detail-row">
+                    <span className="member-detail-label">Storage Used:</span>
                     <span className="font-mono" style={{ color: 'var(--amber-status)' }}>{formatBytes(member.used_bytes || 0)}</span>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Files Hosted:</span>
+                  <div className="member-detail-row">
+                    <span className="member-detail-label">Files Hosted:</span>
                     <span className="font-mono" style={{ color: 'var(--text-main)' }}>{member.files_hosted_count || 0} files</span>
                   </div>
                 </div>
@@ -94,5 +92,6 @@ export default function MemberSidebar({ members, roomOwnerId, currentUserId }) {
         })}
       </div>
     </aside>
+    </>
   );
 }

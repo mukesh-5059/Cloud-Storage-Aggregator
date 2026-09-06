@@ -19,7 +19,7 @@ import DeleteAccountModal from './components/modals/DeleteAccountModal';
 import RenameItemModal from './components/modals/RenameItemModal';
 import ConfirmDeleteModal from './components/modals/ConfirmDeleteModal';
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || `http://${window.location.hostname}:8000`;
 const GOOGLE_CLIENT_ID = '338846147570-nqc50noev8fn4ma36hrpgaltq7jr43k4.apps.googleusercontent.com';
 
 export default function App() {
@@ -54,6 +54,7 @@ export default function App() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
+  const [isMobileMembersOpen, setIsMobileMembersOpen] = useState(false);
 
   // Selected file targets for modals
   const [fileToMove, setFileToMove] = useState(null);
@@ -535,23 +536,7 @@ export default function App() {
     <div className="app-shell">
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          backgroundColor: 'var(--bg-panel)',
-          border: '1px solid var(--emerald-primary)',
-          borderRadius: '8px',
-          padding: '10px 16px',
-          color: 'var(--emerald-primary)',
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
-          zIndex: 200,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px'
-        }}>
+        <div className="toast-banner">
           {toastMessage.includes('Preparing & downloading') && (
             <RefreshCw className="animate-spin" size={16} color="var(--emerald-primary)" />
           )}
@@ -576,6 +561,7 @@ export default function App() {
           storageData={storageData}
           onOpenUploadModal={() => setIsUploadModalOpen(true)}
           onOpenAllocateModal={() => setIsAllocateModalOpen(true)}
+          onToggleMobileMembers={() => setIsMobileMembersOpen(prev => !prev)}
         />
 
         <FileExplorer
@@ -616,6 +602,8 @@ export default function App() {
         members={roomMembers}
         roomOwnerId={activeRoom?.owner_id}
         currentUserId={currentUser?.id}
+        isMobileOpen={isMobileMembersOpen}
+        onCloseMobile={() => setIsMobileMembersOpen(false)}
       />
 
       {/* Modals & Dialog System */}

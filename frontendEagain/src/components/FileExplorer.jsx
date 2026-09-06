@@ -44,7 +44,7 @@ function getFileIcon(item) {
   return <FileText size={18} className="file-icon" />;
 }
 
-export default function FileExplorer({
+const FileExplorer = React.memo(function FileExplorer({
   items,
   breadcrumbs,
   onNavigateBreadcrumb,
@@ -244,7 +244,7 @@ export default function FileExplorer({
             </div>
           </>
         ) : (
-          <div className="selection-placeholder" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.6 }}>
+          <div className="selection-placeholder">
             <MousePointerClick size={14} />
             <span>Select an item to view options</span>
           </div>
@@ -254,15 +254,15 @@ export default function FileExplorer({
       {/* File Explorer Content View (List vs Grid) */}
       <div className="file-table-wrapper">
         {loadingFiles ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+          <div className="explorer-empty-state">
             <RefreshCw className="animate-spin" size={28} color="var(--emerald-primary)" />
-            <p style={{ fontSize: '0.85rem' }}>Loading folder items...</p>
+            <p className="explorer-empty-title">Loading folder items...</p>
           </div>
         ) : (!items || items.length === 0) ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
-            <Folder size={48} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
-            <p style={{ fontSize: '0.9rem' }}>This folder is empty</p>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginTop: '4px' }}>
+          <div className="explorer-empty-state">
+            <Folder size={48} className="explorer-empty-icon" />
+            <p className="explorer-empty-title">This folder is empty</p>
+            <p className="explorer-empty-subtext">
               Upload a file or create a folder to start pooling storage
             </p>
           </div>
@@ -343,4 +343,6 @@ export default function FileExplorer({
       </div>
     </div>
   );
-}
+});
+
+export default FileExplorer;
