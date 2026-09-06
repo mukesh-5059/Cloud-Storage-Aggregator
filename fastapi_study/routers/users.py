@@ -274,6 +274,10 @@ def delete_my_account(
     for r in rooms_to_delete:
         db.delete(r)
 
+    # Flush room updates/deletions to DB & clear relationship state in memory
+    db.flush()
+    current_user.created_rooms.clear()
+
     # Delete user record (cascade rules will clean up UserRoom rows automatically)
     db.delete(current_user)
     db.commit()
