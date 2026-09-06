@@ -1,113 +1,110 @@
 import React from 'react';
-import { X, User, Mail, HardDrive, LogOut, Trash2, ShieldCheck } from 'lucide-react';
+import { X, User, LogOut, HardDrive, Mail, Trash2 } from 'lucide-react';
 
-export default function UserProfileModal({ isOpen, onClose, currentUser, onLogout, onDeleteAccount }) {
-  if (!isOpen || !currentUser) return null;
+function formatBytes(bytes, decimals = 1) {
+  if (bytes === 0 || !bytes) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
 
-  const formatBytes = (bytes) => {
-    if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const totalLimit = currentUser.storage_limit || (15 * 1024 * 1024 * 1024);
-  const totalUsage = currentUser.storage_usage || 0;
+export default function UserProfileModal({ isOpen, onClose, user, onLogout, onDeleteAccount }) {
+  if (!isOpen || !user) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: '440px' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-header)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <User size={22} color="var(--accent-cyan)" />
-            <span>Account Profile</span>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">
+            <User size={20} color="var(--emerald-primary)" />
+            <span>My Profile & Settings</span>
           </h2>
-          <X size={20} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={onClose} />
+          <button className="close-btn" onClick={onClose}>
+            <X size={20} />
+          </button>
         </div>
 
-        {/* User Profile Card */}
-        <div style={{ background: 'var(--bg-rail)', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* User Account Card */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            padding: '16px',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-medium)',
+            borderRadius: '10px'
+          }}>
             <div style={{
-              width: '54px',
-              height: '54px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo))',
-              color: '#ffffff',
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              backgroundColor: 'var(--emerald-bg-tint)',
+              border: '1px solid var(--border-emerald)',
+              color: 'var(--emerald-primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '1.5rem',
-              fontWeight: 700
+              fontWeight: 700,
+              fontSize: '1.2rem'
             }}>
-              {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+              {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
+
             <div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-header)' }}>{currentUser.name}</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                <Mail size={14} color="var(--accent-cyan)" />
-                <span>{currentUser.email}</span>
+              <div style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-main)' }}>{user.name}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Mail size={12} /> {user.email}
+              </div>
+              <div className="font-mono" style={{ fontSize: '0.72rem', color: 'var(--emerald-primary)', marginTop: '2px' }}>
+                Main User ID: #{user.id}
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--accent-emerald)', marginBottom: '16px' }}>
-            <ShieldCheck size={16} />
-            <span>Google Identity Verified</span>
+          {/* Storage Capacity Gauge */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            padding: '14px',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '8px',
+            fontSize: '0.85rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Google Drive Limit:</span>
+              <span className="font-mono" style={{ color: 'var(--text-main)', fontWeight: 600 }}>
+                {formatBytes(user.storage_limit || (15 * 1024 * 1024 * 1024))}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Personal GDrive Usage:</span>
+              <span className="font-mono" style={{ color: 'var(--amber-status)', fontWeight: 600 }}>
+                {formatBytes(user.storage_usage || 0)}
+              </span>
+            </div>
           </div>
 
-          {/* Storage Quota Breakdown */}
-          <div style={{ background: 'var(--bg-card)', borderRadius: '8px', padding: '12px 16px' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
-              GOOGLE DRIVE STORAGE QUOTA
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-normal)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <HardDrive size={16} color="var(--accent-cyan)" />
-                <span>Used: {formatBytes(totalUsage)}</span>
-              </div>
-              <span>Total: {formatBytes(totalLimit)}</span>
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+            <button className="btn-slate" onClick={onLogout} style={{ justifyContent: 'center' }}>
+              <LogOut size={16} />
+              <span>Log Out</span>
+            </button>
+
+            <button
+              className="action-chip destructive"
+              onClick={onDeleteAccount}
+              style={{ justifyContent: 'center', padding: '8px', borderRadius: '6px' }}
+            >
+              <Trash2 size={16} />
+              <span>Delete My Account</span>
+            </button>
           </div>
-        </div>
-
-        {/* Action Buttons: Sign Out & Delete Account */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <button 
-            className="btn-secondary-action" 
-            style={{ width: '100%', justifyContent: 'center', padding: '10px', fontSize: '0.9rem' }}
-            onClick={() => {
-              onClose();
-              onLogout();
-            }}
-          >
-            <LogOut size={16} />
-            <span>Sign Out</span>
-          </button>
-
-          <button 
-            className="btn-secondary-action" 
-            style={{
-              width: '100%',
-              justifyContent: 'center',
-              padding: '10px',
-              fontSize: '0.9rem',
-              color: 'var(--accent-rose)',
-              borderColor: 'rgba(244, 63, 94, 0.3)',
-              backgroundColor: 'rgba(244, 63, 94, 0.08)'
-            }}
-            onClick={() => {
-              if (window.confirm("Are you sure you want to permanently delete your account? This action cannot be undone.")) {
-                onClose();
-                onDeleteAccount();
-              }
-            }}
-          >
-            <Trash2 size={16} />
-            <span>Delete Account</span>
-          </button>
         </div>
       </div>
     </div>

@@ -1,136 +1,60 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { HardDrive, Plus, Upload, FolderPlus, Folder, PlusCircle } from 'lucide-react';
+import React from 'react';
+import { UploadCloud, HardDriveDownload } from 'lucide-react';
 
-const BACKEND_URL = 'http://localhost:8000';
+function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0 || !bytes) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
 
-export default function StorageHero({
-  activeRoom,
-  appJwt,
-  onOpenAllocateModal,
-  onRefreshDashboard
-}) {
-  const [storageData, setStorageData] = useState({ total_allocated_bytes: 0, total_used_bytes: 0 });
-  const fileInputRef = useRef(null);
+export default function StorageHero({ activeRoom, storageData, onOpenUploadModal, onOpenAllocateModal }) {
+  if (!activeRoom) return null;
 
-  useEffect(() => {
-    if (activeRoom && appJwt) {
-      fetchStorageSummary();
-    } else {
-      setStorageData({ total_allocated_bytes: 0, total_used_bytes: 0 });
-    }
-  }, [activeRoom, appJwt]);
-
-  const fetchStorageSummary = async () => {
-    if (!activeRoom || !appJwt) return;
-    try {
-      const res = await fetch(`${BACKEND_URL}/rooms/${activeRoom.id}/dashboard`, {
-        headers: { Authorization: `Bearer ${appJwt}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setStorageData(data.storage);
-      }
-    } catch (err) {
-      console.error("Failed to fetch storage summary:", err);
-    }
-  };
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !activeRoom || !appJwt) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/files/room/${activeRoom.id}/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${appJwt}` },
-        body: formData
-      });
-      if (res.ok) {
-        fetchStorageSummary();
-        if (onRefreshDashboard) onRefreshDashboard();
-      } else {
-        const errData = await res.json();
-        alert(errData.detail || 'Upload failed');
-      }
-    } catch (err) {
-      console.error("File upload error:", err);
-    }
-  };
-
-  const formatBytes = (bytes) => {
-    if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const totalUsedBytes = storageData.total_used_bytes || 0;
-  const totalCapacityBytes = storageData.total_allocated_bytes || 0;
-
-  const percentage = totalCapacityBytes > 0
-    ? Math.min(100, Math.round((totalUsedBytes / totalCapacityBytes) * 100))
-    : 0;
+  const totalAllocated = storageData?.total_allocated_bytes || 0;
+  const totalUsed = storageData?.total_used_bytes || 0;
+  const availableBytes = Math.max(0, totalAllocated - totalUsed);
+  const usagePercentage = totalAllocated > 0 ? Math.min(100, Math.round((totalUsed / totalAllocated) * 100)) : 0;
 
   return (
-    <section className="storage-hero-dashboard">
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        style={{ display: 'none' }} 
-        onChange={handleFileUpload} 
-      />
-      {/* Top Row: Metric & Action Buttons */}
+    <div className="storage-hero">
       <div className="storage-hero-top">
-        <div className="hero-metric-group">
-          <span className="hero-subtitle">
-            {activeRoom ? activeRoom.name : 'Pooled Storage Aggregator'}
-          </span>
-          <div className="hero-metric-big">
-            <span>{formatBytes(totalUsedBytes)}</span>
-            <span className="hero-metric-limit">/ {formatBytes(totalCapacityBytes)} Pooled</span>
+        <div className="storage-room-meta">
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 className="room-title">{activeRoom.name}</h1>
+              <span className="room-id-badge">ID: #{activeRoom.id}</span>
+            </div>
+            <div className="storage-metrics">
+              <span className="storage-used-val">{formatBytes(totalUsed)}</span>
+              <span className="storage-total-val">/ {formatBytes(totalAllocated)} Pooled</span>
+            </div>
           </div>
         </div>
 
-        <div className="hero-actions">
-          {activeRoom && (
-            <button 
-              className="btn-primary-action"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Plus size={18} />
-              <span>Upload File</span>
-            </button>
-          )}
-
-          {/* Allocate Storage Button */}
-          {activeRoom && (
-            <button className="btn-secondary-action" onClick={onOpenAllocateModal}>
-              <PlusCircle size={16} color="var(--accent-cyan)" />
-              <span>Allocate Quota</span>
-            </button>
-          )}
+        <div className="storage-hero-actions">
+          <button className="btn-emerald" onClick={onOpenUploadModal}>
+            <UploadCloud size={18} />
+            <span>Upload File</span>
+          </button>
+          <button className="btn-slate" onClick={onOpenAllocateModal}>
+            <HardDriveDownload size={18} />
+            <span>Allocate Quota</span>
+          </button>
         </div>
       </div>
 
-      {/* Giant Storage Progress Bar */}
-      <div className="hero-progress-section">
-        <div className="hero-progress-track">
-          <div 
-            className="hero-progress-fill" 
-            style={{ width: `${percentage}%` }}
-          />
+      <div className="storage-progress-container">
+        <div className="storage-progress-track">
+          <div className="storage-progress-fill" style={{ width: `${usagePercentage}%` }} />
         </div>
-
-        <div className="hero-progress-meta">
-          <span>{percentage}% Space Consumed</span>
-          <span>Available: {formatBytes(Math.max(0, totalCapacityBytes - totalUsedBytes))}</span>
+        <div className="storage-progress-subtext">
+          <span>{usagePercentage}% Capacity Used</span>
+          <span>Available Space: {formatBytes(availableBytes)}</span>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
-

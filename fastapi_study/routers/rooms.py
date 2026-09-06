@@ -155,36 +155,45 @@ def contribute_storage(
 
     membership.allocated_bytes = payload.allocated_bytes
 
-    # Create physical folder in Google Drive if real ID is not yet stored
-    if not membership.gdrive_folder_id or membership.gdrive_folder_id.startswith("CloudAggregator_") or membership.gdrive_folder_id.startswith("mock_"):
+    # Create physical folder in Google Drive if ID is not yet stored
+    if not membership.gdrive_folder_id:
         access_token = get_fresh_google_access_token(current_user, db)
-        folder_id = f"mock_folder_{room_id}_{current_user.id}"
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User has no active Google OAuth authorization to create storage folder."
+            )
 
-        if access_token and not access_token.startswith("mock_"):
-            try:
-                folder_metadata = {
-                    "name": gdrive_folder_name,
-                    "mimeType": "application/vnd.google-apps.folder"
-                }
-                headers = {
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json"
-                }
-                gdrive_res = requests.post(
-                    "https://www.googleapis.com/drive/v3/files",
-                    headers=headers,
-                    data=json.dumps(folder_metadata)
+        try:
+            folder_metadata = {
+                "name": gdrive_folder_name,
+                "mimeType": "application/vnd.google-apps.folder"
+            }
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            gdrive_res = requests.post(
+                "https://www.googleapis.com/drive/v3/files",
+                headers=headers,
+                data=json.dumps(folder_metadata)
+            )
+
+            if gdrive_res.status_code == 200:
+                folder_id = gdrive_res.json().get("id")
+                membership.gdrive_folder_id = folder_id
+                logger.info(f"Created Google Drive folder '{gdrive_folder_name}' with ID {folder_id}")
+            else:
+                logger.error(f"Google Drive folder creation status {gdrive_res.status_code}: {gdrive_res.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Failed to create Google Drive folder ({gdrive_res.status_code}): {gdrive_res.text}"
                 )
-
-                if gdrive_res.status_code == 200:
-                    folder_id = gdrive_res.json().get("id", folder_id)
-                    logger.info(f"Created real Google Drive folder '{gdrive_folder_name}' with ID {folder_id}")
-                else:
-                    logger.warning(f"Google Drive folder creation status {gdrive_res.status_code}: {gdrive_res.text}")
-            except Exception as e:
-                logger.error(f"Error creating Google Drive folder: {e}")
-
-        membership.gdrive_folder_id = folder_id
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error creating Google Drive folder: {e}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Google Drive error: {str(e)}")
 
     db.commit()
     db.refresh(membership)

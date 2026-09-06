@@ -1,46 +1,25 @@
 import React, { useState } from 'react';
-import { X, HardDrive, Check } from 'lucide-react';
+import { X, HardDrive, CheckCircle } from 'lucide-react';
 
-const BACKEND_URL = 'http://localhost:8000';
-
-export default function AllocateStorageModal({ isOpen, onClose, activeRoom, appJwt, currentUser, onAllocateSuccess }) {
+export default function AllocateStorageModal({ isOpen, onClose, activeRoom, currentUser, onAllocateStorage }) {
   const [allocatedGb, setAllocatedGb] = useState(5);
   const [loading, setLoading] = useState(false);
 
   if (!isOpen || !activeRoom) return null;
 
-  // Dynamic limits from user profile (default to 15GB standard free Google Drive quota if limit not provided)
+  // Google Drive standard 15GB free limit fallback
   const userTotalLimitBytes = currentUser?.storage_limit || (15 * 1024 * 1024 * 1024);
   const userUsageBytes = currentUser?.storage_usage || 0;
   const availableFreeBytes = Math.max(1 * 1024 * 1024 * 1024, userTotalLimitBytes - userUsageBytes);
   const maxAvailableGb = Math.max(1, Math.floor(availableFreeBytes / (1024 * 1024 * 1024)));
-
-  const handleTextChange = (e) => {
-    const val = Number(e.target.value);
-    if (isNaN(val)) return;
-    setAllocatedGb(Math.min(maxAvailableGb, Math.max(0, val)));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     const bytes = allocatedGb * 1024 * 1024 * 1024;
     try {
-      const res = await fetch(`${BACKEND_URL}/rooms/${activeRoom.id}/contribute`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${appJwt}`
-        },
-        body: JSON.stringify({ allocated_bytes: bytes })
-      });
-      if (res.ok) {
-        onAllocateSuccess(bytes);
-        onClose();
-      } else {
-        const err = await res.json();
-        alert(err.detail || 'Failed to allocate storage');
-      }
+      await onAllocateStorage(bytes);
+      onClose();
     } catch (err) {
       console.error(err);
     } finally {
@@ -49,76 +28,80 @@ export default function AllocateStorageModal({ isOpen, onClose, activeRoom, appJ
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-header)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <HardDrive size={20} color="var(--accent-gdrive-blue)" />
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">
+            <HardDrive size={20} color="var(--emerald-primary)" />
             <span>Allocate Storage Quota</span>
           </h2>
-          <X size={20} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={onClose} />
+          <button className="close-btn" onClick={onClose}>
+            <X size={20} />
+          </button>
         </div>
 
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-          Select how much of your Google Drive capacity you wish to contribute to <strong>{activeRoom.name}</strong>.
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+          Contribute a portion of your personal Google Drive capacity to <strong style={{ color: 'var(--text-main)' }}>{activeRoom.name}</strong>.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ background: 'var(--bg-rail)', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+          <div style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-medium)',
+            borderRadius: '8px',
+            padding: '20px',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <input
                 type="number"
-                min="0"
+                min="1"
                 max={maxAvailableGb}
                 value={allocatedGb}
-                onChange={handleTextChange}
+                onChange={(e) => setAllocatedGb(Math.min(maxAvailableGb, Math.max(1, Number(e.target.value))))}
+                className="font-mono"
                 style={{
                   fontSize: '1.8rem',
                   fontWeight: 700,
-                  color: 'var(--accent-gdrive-blue)',
-                  background: 'transparent',
-                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--emerald-primary)',
+                  backgroundColor: 'var(--bg-app)',
+                  border: '1px solid var(--border-medium)',
                   borderRadius: '6px',
                   textAlign: 'center',
-                  width: '100px',
+                  width: '110px',
                   padding: '4px'
                 }}
               />
-              <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent-gdrive-blue)' }}>GB</span>
+              <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--emerald-primary)' }}>GB</span>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+            <div className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               Max Available Free Space: {maxAvailableGb} GB
             </div>
           </div>
 
           <input
             type="range"
-            min="0"
+            min="1"
             max={maxAvailableGb}
             value={allocatedGb}
             onChange={(e) => setAllocatedGb(Number(e.target.value))}
-            style={{ width: '100%', accentColor: 'var(--accent-gdrive-blue)', cursor: 'pointer' }}
+            style={{ width: '100%', accentColor: 'var(--emerald-primary)', cursor: 'pointer' }}
           />
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            <span>0 GB</span>
-            <span>{Math.floor(maxAvailableGb / 2)} GB</span>
-            <span>{maxAvailableGb} GB</span>
-          </div>
-
-          <button 
-            className="btn-new-upload" 
-            type="submit" 
+          <button
+            type="submit"
+            className="btn-emerald"
             disabled={loading}
-            style={{ justifyContent: 'center', marginTop: '10px', backgroundColor: 'var(--accent-gdrive-blue)' }}
+            style={{ justifyContent: 'center', marginTop: '8px' }}
           >
-            <Check size={16} />
-            <span>{loading ? 'Allocating...' : 'Confirm Storage Allocation'}</span>
+            <CheckCircle size={18} />
+            <span>{loading ? 'Allocating...' : `Confirm ${allocatedGb} GB Allocation`}</span>
           </button>
         </form>
       </div>
     </div>
   );
 }
-
-

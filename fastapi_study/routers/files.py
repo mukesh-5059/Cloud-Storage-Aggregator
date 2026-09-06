@@ -1,7 +1,7 @@
 import logging
 import json
 import requests
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, Response, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -21,6 +21,7 @@ from routers.auth import CLIENT_ID, CLIENT_SECRET
 
 logger = logging.getLogger("files")
 router = APIRouter(prefix="/files", tags=["Files"])
+
 
 
 def get_fresh_google_access_token(user: User, db: Session) -> Optional[str]:
@@ -47,6 +48,8 @@ def get_fresh_google_access_token(user: User, db: Session) -> Optional[str]:
         except Exception as e:
             logger.warning(f"Failed to refresh Google access token for User ID {user.id}: {e}")
     return user.google_access_token
+
+
 
 
 def check_membership(user_id: int, room_id: int, db: Session):
@@ -138,6 +141,7 @@ def create_folder(
 def create_upload_intent(
     room_id: int,
     payload: UploadIntentRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -166,45 +170,61 @@ def create_upload_intent(
         )
 
     storage_user = db.query(User).filter(User.id == target_contrib.user_id).first()
-    access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
+    if not storage_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Target host contributor user not found")
 
-    # Fallback mock upload_url for offline testing
-    upload_url = f"https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&mock_session={room_id}_{target_contrib.user_id}"
+    access_token = get_fresh_google_access_token(storage_user, db)
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Host contributor has no active Google OAuth authorization."
+        )
 
-    if access_token and not access_token.startswith("mock_"):
-        try:
-            metadata = {
-                "name": payload.name,
-                "mimeType": payload.mime_type or "application/octet-stream"
-            }
-            if target_contrib.gdrive_folder_id:
-                metadata["parents"] = [target_contrib.gdrive_folder_id]
+    try:
+        metadata = {
+            "name": payload.name,
+            "mimeType": payload.mime_type or "application/octet-stream"
+        }
+        if target_contrib.gdrive_folder_id:
+            metadata["parents"] = [target_contrib.gdrive_folder_id]
 
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "X-Upload-Content-Type": payload.mime_type or "application/octet-stream",
-                "X-Upload-Content-Length": str(payload.size_bytes),
-                "Content-Type": "application/json; charset=UTF-8"
-            }
+        client_origin = request.headers.get("origin") or "http://localhost:3000"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "X-Upload-Content-Type": payload.mime_type or "application/octet-stream",
+            "X-Upload-Content-Length": str(payload.size_bytes),
+            "Content-Type": "application/json; charset=UTF-8",
+            "Origin": client_origin
+        }
 
-            gdrive_res = requests.post(
-                "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
-                headers=headers,
-                data=json.dumps(metadata)
+        gdrive_res = requests.post(
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+            headers=headers,
+            data=json.dumps(metadata)
+        )
+
+        if gdrive_res.status_code == 200 and "Location" in gdrive_res.headers:
+            upload_url = gdrive_res.headers["Location"]
+            logger.info(f"Generated Google Drive resumable upload URL for '{payload.name}'")
+        else:
+            logger.error(f"Google Drive API intent failed ({gdrive_res.status_code}): {gdrive_res.text}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Google Drive API error: {gdrive_res.text}"
             )
-
-            if gdrive_res.status_code == 200 and "Location" in gdrive_res.headers:
-                upload_url = gdrive_res.headers["Location"]
-                logger.info(f"Generated Google Drive resumable upload URL for '{payload.name}'")
-            else:
-                logger.warning(f"Google Drive API intent failed ({gdrive_res.status_code}): {gdrive_res.text}. Returning mock upload_url.")
-        except Exception as e:
-            logger.error(f"Error calling Google Drive API for upload intent: {e}. Returning mock upload_url.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calling Google Drive API for upload intent: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to initiate Google Drive upload: {str(e)}"
+        )
 
     return UploadIntentResponse(
         upload_url=upload_url,
         storage_user_id=target_contrib.user_id,
-        storage_user_name=storage_user.name if storage_user else "Unknown"
+        storage_user_name=storage_user.name
     )
 
 
@@ -239,7 +259,7 @@ def complete_upload(
     access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
 
     # Set file permission to 'anyone/reader' so preview iframe works for all room members
-    if access_token and not payload.gdrive_file_id.startswith("mock_"):
+    if access_token:
         try:
             perm_url = f"https://www.googleapis.com/drive/v3/files/{payload.gdrive_file_id}/permissions"
             perm_data = {"role": "reader", "type": "anyone"}
@@ -293,37 +313,44 @@ def download_file(
     if item.is_folder:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot download a folder")
 
+    if not item.gdrive_file_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File has no Google Drive ID stored")
+
     storage_user = db.query(User).filter(User.id == item.storage_user_id).first() if item.storage_user_id else None
-    access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
+    if not storage_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Host contributor user record missing")
 
-    if item.gdrive_file_id and access_token and not item.gdrive_file_id.startswith("mock_"):
-        try:
-            drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}?alt=media"
-            headers = {"Authorization": f"Bearer {access_token}"}
-            gdrive_res = requests.get(drive_url, headers=headers, stream=True)
+    access_token = get_fresh_google_access_token(storage_user, db)
+    if not access_token:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Host contributor has no active Google OAuth authorization")
 
-            if gdrive_res.status_code == 200:
-                def iterfile():
-                    for chunk in gdrive_res.iter_content(chunk_size=8192):
-                        if chunk:
-                            yield chunk
+    try:
+        drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}?alt=media"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        gdrive_res = requests.get(drive_url, headers=headers, stream=True)
 
-                return StreamingResponse(
-                    iterfile(),
-                    media_type=item.mime_type or "application/octet-stream",
-                    headers={"Content-Disposition": f'attachment; filename="{item.name}"'}
-                )
-            else:
-                logger.warning(f"Google Drive API download failed ({gdrive_res.status_code}): {gdrive_res.text}")
-        except Exception as e:
-            logger.error(f"Error downloading from Google Drive API: {e}")
+        if gdrive_res.status_code == 200:
+            def iterfile():
+                for chunk in gdrive_res.iter_content(chunk_size=8192):
+                    if chunk:
+                        yield chunk
 
-    dummy_content = f"Dummy binary content for file '{item.name}' (ID {item.id}, hosted on User {item.storage_user_id}'s GDrive)".encode()
-    return Response(
-        content=dummy_content,
-        media_type=item.mime_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{item.name}"'}
-    )
+            return StreamingResponse(
+                iterfile(),
+                media_type=item.mime_type or "application/octet-stream",
+                headers={"Content-Disposition": f'attachment; filename="{item.name}"'}
+            )
+        else:
+            logger.error(f"Google Drive API download failed ({gdrive_res.status_code}): {gdrive_res.text}")
+            raise HTTPException(
+                status_code=gdrive_res.status_code if gdrive_res.status_code in (404, 403, 401) else status.HTTP_502_BAD_GATEWAY,
+                detail=f"Google Drive API download error ({gdrive_res.status_code}): {gdrive_res.text}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading from Google Drive API: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Download error: {str(e)}")
 
 
 @router.patch("/{file_id}/move", response_model=FileItemResponse)
@@ -360,7 +387,7 @@ def delete_item_recursively(item: FileItem, db: Session):
         for child in children:
             delete_item_recursively(child, db)
     else:
-        if item.storage_user_id and item.gdrive_file_id and not item.gdrive_file_id.startswith("mock_"):
+        if item.storage_user_id and item.gdrive_file_id:
             storage_user = db.query(User).filter(User.id == item.storage_user_id).first()
             access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
             if access_token:
