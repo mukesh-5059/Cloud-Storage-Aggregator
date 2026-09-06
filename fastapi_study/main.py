@@ -3,7 +3,7 @@ import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import auth, rooms, users
+from routers import auth, rooms, users, files
 
 class CustomColoredFormatter(logging.Formatter):
     GREY = "\x1b[38;20m"
@@ -75,6 +75,7 @@ async def log_requests(request: Request, call_next):
 app.include_router(auth.router)
 app.include_router(rooms.router)
 app.include_router(users.router)
+app.include_router(files.router)
 
 @app.get("/")
 def root():

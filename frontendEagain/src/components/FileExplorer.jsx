@@ -1,21 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Grid, List, Folder, FileText, Film, FileCode, HardDrive, User, ChevronUp, ChevronDown,
-  Eye, FolderInput, Trash2, Info, X, CheckSquare
+  Eye, FolderInput, Trash2, Info, X, CheckSquare, FolderPlus
 } from 'lucide-react';
 
-export default function FileExplorer({ activeRoom, currentUser }) {
+const BACKEND_URL = 'http://localhost:8000';
+
+export default function FileExplorer({ activeRoom, currentUser, appJwt, onTriggerRefresh }) {
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentPath, setCurrentPath] = useState(['Home']);
-  const [selectedFile, setSelectedFile] = useState(null); // Item details modal state
+  const [pathHistory, setPathHistory] = useState([{ id: null, name: 'Home' }]); // Array of {id, name}
+  const [files, setFiles] = useState([]);
+  const [selectedFileModal, setSelectedFileModal] = useState(null); // Item details modal state
   const [activeSelectedItem, setActiveSelectedItem] = useState(null); // Single click active selection
+  const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [targetMoveFolderId, setTargetMoveFolderId] = useState(null);
 
   // Sorting state: default is 'name' ASC with folders first always
   const [sortKey, setSortKey] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
 
   const searchInputRef = useRef(null);
+
+  const currentFolder = pathHistory[pathHistory.length - 1];
 
   // Keydown listener for '/' hotkey to focus search bar
   useEffect(() => {
@@ -29,14 +38,127 @@ export default function FileExplorer({ activeRoom, currentUser }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Mock file dataset
-  const [files, setFiles] = useState([
-    { id: 1, title: 'Documents', type: 'folder', size: 0, hostName: 'Mukesh', uploaderName: 'Mukesh', date: '2026-09-01', isFolder: true },
-    { id: 2, title: 'Media Assets', type: 'folder', size: 0, hostName: 'Sarah', uploaderName: 'Sarah', date: '2026-09-02', isFolder: true },
-    { id: 3, title: 'presentation_deck.pdf', type: 'pdf', size: 4850000, hostName: 'Mukesh', uploaderName: 'Mukesh', date: '2026-09-04', isFolder: false },
-    { id: 4, title: 'dataset_raw.csv', type: 'csv', size: 154000000, hostName: 'Sarah', uploaderName: 'Alex', date: '2026-09-03', isFolder: false },
-    { id: 5, title: 'system_architecture.mp4', type: 'video', size: 1250000000, hostName: 'Alex', uploaderName: 'Sarah', date: '2026-09-05', isFolder: false }
-  ]);
+  // Fetch files from backend when room or current folder changes
+  useEffect(() => {
+    if (activeRoom && appJwt) {
+      if (searchQuery.trim().length > 0) {
+        handleSearchFiles();
+      } else {
+        fetchFiles();
+      }
+    } else {
+      setFiles([]);
+    }
+  }, [activeRoom, pathHistory, appJwt]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!activeRoom || !appJwt) return;
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length > 0) {
+        handleSearchFiles();
+      } else {
+        fetchFiles();
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchFiles = async () => {
+    if (!activeRoom || !appJwt) return;
+    try {
+      const parentQuery = currentFolder.id ? `?parent_id=${currentFolder.id}` : '';
+      const res = await fetch(`${BACKEND_URL}/files/room/${activeRoom.id}${parentQuery}`, {
+        headers: { Authorization: `Bearer ${appJwt}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFiles(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch files:", err);
+    }
+  };
+
+  const handleSearchFiles = async () => {
+    if (!activeRoom || !appJwt) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/files/room/${activeRoom.id}/search?q=${encodeURIComponent(searchQuery)}`, {
+        headers: { Authorization: `Bearer ${appJwt}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFiles(data);
+      }
+    } catch (err) {
+      console.error("Failed to search files:", err);
+    }
+  };
+
+  const handleCreateFolder = async (e) => {
+    e.preventDefault();
+    if (!newFolderName.trim() || !activeRoom) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/files/room/${activeRoom.id}/folder`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${appJwt}`
+        },
+        body: JSON.stringify({
+          name: newFolderName,
+          parent_id: currentFolder.id
+        })
+      });
+      if (res.ok) {
+        setNewFolderName('');
+        setIsNewFolderModalOpen(false);
+        fetchFiles();
+      }
+    } catch (err) {
+      console.error("Failed to create folder:", err);
+    }
+  };
+
+  const handleDeleteItem = async (fileId) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/files/${fileId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${appJwt}` }
+      });
+      if (res.ok) {
+        setActiveSelectedItem(null);
+        fetchFiles();
+        if (onTriggerRefresh) onTriggerRefresh();
+      }
+    } catch (err) {
+      console.error("Failed to delete item:", err);
+    }
+  };
+
+  const handleMoveItem = async (e) => {
+    e.preventDefault();
+    if (!activeSelectedItem) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/files/${activeSelectedItem.id}/move`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${appJwt}`
+        },
+        body: JSON.stringify({
+          new_parent_id: targetMoveFolderId ? Number(targetMoveFolderId) : null
+        })
+      });
+      if (res.ok) {
+        setIsMoveModalOpen(false);
+        setActiveSelectedItem(null);
+        fetchFiles();
+      }
+    } catch (err) {
+      console.error("Failed to move item:", err);
+    }
+  };
 
   const formatBytes = (bytes) => {
     if (!bytes || bytes === 0) return '—';
@@ -47,31 +169,26 @@ export default function FileExplorer({ activeRoom, currentUser }) {
   };
 
   const getFileIcon = (file) => {
-    if (file.isFolder) return <Folder size={20} color="var(--accent-amber)" />;
-    if (file.title.endsWith('.mp4') || file.title.endsWith('.mkv')) return <Film size={20} color="var(--accent-rose)" />;
-    if (file.title.endsWith('.pdf')) return <FileText size={20} color="var(--accent-cyan)" />;
-    if (file.title.endsWith('.csv') || file.title.endsWith('.xlsx')) return <FileCode size={20} color="var(--accent-emerald)" />;
+    if (file.is_folder) return <Folder size={20} color="var(--accent-amber)" />;
+    if (file.name.endsWith('.mp4') || file.name.endsWith('.mkv')) return <Film size={20} color="var(--accent-rose)" />;
+    if (file.name.endsWith('.pdf')) return <FileText size={20} color="var(--accent-cyan)" />;
+    if (file.name.endsWith('.csv') || file.name.endsWith('.xlsx')) return <FileCode size={20} color="var(--accent-emerald)" />;
     return <FileText size={20} color="var(--text-secondary)" />;
   };
 
-  // Single Click Handler: Selects item and reveals fixed-height Action Bar
+  // Single Click Handler: Selects item
   const handleSingleClick = (file) => {
     setActiveSelectedItem(file);
   };
 
-  // Double Click Handler: Opens folder or previews file
+  // Double Click Handler: Opens folder or previews file details
   const handleDoubleClick = (file) => {
-    if (file.isFolder) {
-      setCurrentPath(prev => [...prev, file.title]);
+    if (file.is_folder) {
+      setPathHistory(prev => [...prev, { id: file.id, name: file.name }]);
       setActiveSelectedItem(null);
     } else {
-      setSelectedFile(file);
+      setSelectedFileModal(file);
     }
-  };
-
-  const handleDeleteItem = (fileId) => {
-    setFiles(prev => prev.filter(f => f.id !== fileId));
-    setActiveSelectedItem(null);
   };
 
   const handleSort = (key) => {
@@ -84,35 +201,30 @@ export default function FileExplorer({ activeRoom, currentUser }) {
   };
 
   const handleBreadcrumbClick = (index) => {
-    setCurrentPath(prev => prev.slice(0, index + 1));
+    setPathHistory(prev => prev.slice(0, index + 1));
     setActiveSelectedItem(null);
   };
 
   // Folders ALWAYS first, then sorted by active key
-  const sortedFiles = [...files]
-    .filter(f => f.title.toLowerCase().includes(searchQuery.toLowerCase()))
-    .sort((a, b) => {
-      if (a.isFolder && !b.isFolder) return -1;
-      if (!a.isFolder && b.isFolder) return 1;
+  const sortedFiles = [...files].sort((a, b) => {
+    if (a.is_folder && !b.is_folder) return -1;
+    if (!a.is_folder && b.is_folder) return 1;
 
-      let valA = a.title.toLowerCase();
-      let valB = b.title.toLowerCase();
+    let valA = a.name.toLowerCase();
+    let valB = b.name.toLowerCase();
 
-      if (sortKey === 'host') {
-        valA = a.hostName.toLowerCase();
-        valB = b.hostName.toLowerCase();
-      } else if (sortKey === 'size') {
-        valA = a.size;
-        valB = b.size;
-      } else if (sortKey === 'date') {
-        valA = a.date;
-        valB = b.date;
-      }
+    if (sortKey === 'size') {
+      valA = a.size_bytes;
+      valB = b.size_bytes;
+    } else if (sortKey === 'date') {
+      valA = a.created_at;
+      valB = b.created_at;
+    }
 
-      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
+    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   const renderSortIndicator = (key) => {
     if (sortKey !== key) return null;
@@ -127,20 +239,28 @@ export default function FileExplorer({ activeRoom, currentUser }) {
           <span style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>
             {activeRoom ? activeRoom.name : 'Storage Pool'}
           </span>
-          {currentPath.map((folder, idx) => (
+          {pathHistory.map((folder, idx) => (
             <React.Fragment key={idx}>
               <span>/</span>
               <span 
                 className="breadcrumb-item" 
                 onClick={() => handleBreadcrumbClick(idx)}
               >
-                {folder}
+                {folder.name}
               </span>
             </React.Fragment>
           ))}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button 
+            className="btn-secondary-action" 
+            style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+            onClick={() => setIsNewFolderModalOpen(true)}
+          >
+            <FolderPlus size={16} /> New Folder
+          </button>
+
           <div className="search-input-box">
             <Search size={16} color="var(--text-muted)" />
             <input 
@@ -171,13 +291,13 @@ export default function FileExplorer({ activeRoom, currentUser }) {
         </div>
       </div>
 
-      {/* FIXED-HEIGHT CONTEXT ACTION BAR SLOT (38px) - Prevents Layout Shifting! */}
+      {/* FIXED-HEIGHT CONTEXT ACTION BAR SLOT (38px) */}
       <div style={{
         height: '38px',
         marginBottom: '14px',
         display: 'flex',
         alignItems: 'center',
-        justify: 'space-between',
+        justifyContent: 'space-between',
         padding: '0 12px',
         backgroundColor: activeSelectedItem ? 'rgba(56, 189, 248, 0.1)' : 'var(--bg-card)',
         border: activeSelectedItem ? '1px solid var(--border-glow)' : '1px solid var(--border-subtle)',
@@ -188,7 +308,7 @@ export default function FileExplorer({ activeRoom, currentUser }) {
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>
               <CheckSquare size={16} />
-              <span>Selected: <strong>{activeSelectedItem.title}</strong></span>
+              <span>Selected: <strong>{activeSelectedItem.name}</strong></span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -202,14 +322,14 @@ export default function FileExplorer({ activeRoom, currentUser }) {
               <button 
                 className="btn-secondary-action" 
                 style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                onClick={() => alert(`Moving "${activeSelectedItem.title}"`)}
+                onClick={() => setIsMoveModalOpen(true)}
               >
                 <FolderInput size={14} /> Move
               </button>
               <button 
                 className="btn-secondary-action" 
                 style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                onClick={() => setSelectedFile(activeSelectedItem)}
+                onClick={() => setSelectedFileModal(activeSelectedItem)}
               >
                 <Info size={14} /> Info
               </button>
@@ -237,22 +357,24 @@ export default function FileExplorer({ activeRoom, currentUser }) {
       </div>
 
       {/* Files Table View */}
-      {viewMode === 'table' ? (
+      {files.length === 0 ? (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+          No files or folders found in this directory.
+        </div>
+      ) : viewMode === 'table' ? (
         <table className="file-table">
           <thead>
             <tr>
               <th onClick={() => handleSort('name')}>
                 Name {renderSortIndicator('name')}
               </th>
-              <th onClick={() => handleSort('host')}>
-                Host (GDrive Owner) {renderSortIndicator('host')}
-              </th>
+              <th>Hosted By</th>
               <th>Uploaded By</th>
               <th onClick={() => handleSort('size')}>
                 Size {renderSortIndicator('size')}
               </th>
               <th onClick={() => handleSort('date')}>
-                Date {renderSortIndicator('date')}
+                Upload Date {renderSortIndicator('date')}
               </th>
             </tr>
           </thead>
@@ -271,22 +393,24 @@ export default function FileExplorer({ activeRoom, currentUser }) {
                 >
                   <td className="file-name-cell">
                     {getFileIcon(file)}
-                    <span>{file.title}</span>
+                    <span>{file.name}</span>
                   </td>
                   <td>
-                    <span className="host-badge">
-                      <HardDrive size={12} color="var(--accent-cyan)" />
-                      {file.hostName}
-                    </span>
+                    {file.is_folder ? '—' : (
+                      <span className="host-badge">
+                        <HardDrive size={12} color="var(--accent-cyan)" />
+                        {file.host_name || 'Unknown'}
+                      </span>
+                    )}
                   </td>
                   <td>
                     <span className="uploader-badge">
                       <User size={12} />
-                      {file.uploaderName}
+                      {file.uploader_name || 'Unknown'}
                     </span>
                   </td>
-                  <td>{formatBytes(file.size)}</td>
-                  <td>{file.date}</td>
+                  <td>{file.is_folder ? '—' : formatBytes(file.size_bytes)}</td>
+                  <td>{new Date(file.created_at).toLocaleDateString()}</td>
                 </tr>
               );
             })}
@@ -311,12 +435,19 @@ export default function FileExplorer({ activeRoom, currentUser }) {
                 <div className="file-card-preview">
                   {getFileIcon(file)}
                 </div>
-                <div className="file-card-title">{file.title}</div>
+                <div className="file-card-title">{file.name}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.75rem' }}>
-                  <span className="host-badge" style={{ width: 'fit-content' }}>
-                    <HardDrive size={10} /> Host: {file.hostName}
+                  {!file.is_folder && (
+                    <span className="host-badge" style={{ width: 'fit-content' }}>
+                      <HardDrive size={10} /> Host: {file.host_name || 'Unknown'}
+                    </span>
+                  )}
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    Uploaded by: {file.uploader_name || 'Unknown'}
                   </span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{formatBytes(file.size)}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {file.is_folder ? 'Folder' : formatBytes(file.size_bytes)}
+                  </span>
                 </div>
               </div>
             );
@@ -324,26 +455,82 @@ export default function FileExplorer({ activeRoom, currentUser }) {
         </div>
       )}
 
+      {/* Create New Folder Modal */}
+      {isNewFolderModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-header)' }}>New Folder</h2>
+              <X size={20} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={() => setIsNewFolderModalOpen(false)} />
+            </div>
+            <form onSubmit={handleCreateFolder}>
+              <input 
+                type="text" 
+                placeholder="Folder name" 
+                value={newFolderName} 
+                onChange={(e) => setNewFolderName(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-rail)', color: '#fff', marginBottom: '16px' }}
+                autoFocus
+              />
+              <button className="btn-primary-action" type="submit" style={{ width: '100%', justifyContent: 'center' }}>
+                Create Folder
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Move File/Folder Modal */}
+      {isMoveModalOpen && activeSelectedItem && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-header)' }}>Move "{activeSelectedItem.name}"</h2>
+              <X size={20} color="var(--text-muted)" style={{ cursor: 'pointer' }} onClick={() => setIsMoveModalOpen(false)} />
+            </div>
+            <form onSubmit={handleMoveItem}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                Select target folder ID (or leave blank to move to Root):
+              </p>
+              <select 
+                value={targetMoveFolderId || ''} 
+                onChange={(e) => setTargetMoveFolderId(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-rail)', color: '#fff', marginBottom: '16px' }}
+              >
+                <option value="">Root / Home Directory</option>
+                {files.filter(f => f.is_folder && f.id !== activeSelectedItem.id).map(folder => (
+                  <option key={folder.id} value={folder.id}>{folder.name}</option>
+                ))}
+              </select>
+              <button className="btn-primary-action" type="submit" style={{ width: '100%', justifyContent: 'center' }}>
+                Move Item
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Selected File Details Modal */}
-      {selectedFile && (
-        <div className="modal-overlay" onClick={() => setSelectedFile(null)}>
+      {selectedFileModal && (
+        <div className="modal-overlay" onClick={() => setSelectedFileModal(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              {getFileIcon(selectedFile)}
+              {getFileIcon(selectedFileModal)}
               <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-header)' }}>
-                {selectedFile.title}
+                {selectedFileModal.name}
               </h2>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.9rem', color: 'var(--text-normal)' }}>
-              <div><strong>GDrive Physical Host:</strong> {selectedFile.hostName}</div>
-              <div><strong>Uploaded By:</strong> {selectedFile.uploaderName}</div>
-              <div><strong>File Size:</strong> {formatBytes(selectedFile.size)}</div>
-              <div><strong>Date Uploaded:</strong> {selectedFile.date}</div>
+              <div><strong>Item Type:</strong> {selectedFileModal.is_folder ? 'Folder' : (selectedFileModal.mime_type || 'File')}</div>
+              {!selectedFileModal.is_folder && <div><strong>Hosted By (GDrive Owner):</strong> {selectedFileModal.host_name || 'Unknown'}</div>}
+              <div><strong>Uploaded By:</strong> {selectedFileModal.uploader_name || 'Unknown'}</div>
+              {!selectedFileModal.is_folder && <div><strong>File Size:</strong> {formatBytes(selectedFileModal.size_bytes)}</div>}
+              <div><strong>Date Uploaded:</strong> {new Date(selectedFileModal.created_at).toLocaleString()}</div>
             </div>
             <button 
               className="btn-primary-action" 
               style={{ width: '100%', justifyContent: 'center', marginTop: '20px' }}
-              onClick={() => setSelectedFile(null)}
+              onClick={() => setSelectedFileModal(null)}
             >
               Close Details
             </button>
@@ -353,3 +540,4 @@ export default function FileExplorer({ activeRoom, currentUser }) {
     </main>
   );
 }
+

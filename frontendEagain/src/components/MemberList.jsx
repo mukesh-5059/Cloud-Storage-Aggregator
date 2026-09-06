@@ -6,42 +6,7 @@ export default function MemberList({ members = [], activeRoom, currentUser }) {
   const [popoverPos, setPopoverPos] = useState({ top: 0 });
   const closeTimeoutRef = useRef(null);
 
-  const defaultDummyMembers = [
-    {
-      id: 1,
-      name: 'Mukesh',
-      email: 'mukesh@example.com',
-      storage_limit: 25 * 1024 * 1024 * 1024, // 25 GB
-      files_count: 5,
-      isOnline: true
-    },
-    {
-      id: 2,
-      name: 'Sarah Jenkins',
-      email: 'sarah.j@example.com',
-      storage_limit: 15 * 1024 * 1024 * 1024, // 15 GB
-      files_count: 3,
-      isOnline: true
-    },
-    {
-      id: 3,
-      name: 'Alex Rivera',
-      email: 'alex.r@example.com',
-      storage_limit: 20 * 1024 * 1024 * 1024, // 20 GB
-      files_count: 4,
-      isOnline: true
-    },
-    {
-      id: 4,
-      name: 'David Chen',
-      email: 'david.c@example.com',
-      storage_limit: 10 * 1024 * 1024 * 1024, // 10 GB
-      files_count: 2,
-      isOnline: false
-    }
-  ];
-
-  const activeMembersList = (members && members.length > 0) ? members : defaultDummyMembers;
+  const activeMembersList = members || [];
 
   const handleMouseEnterMember = (e, member) => {
     if (closeTimeoutRef.current) {
@@ -78,8 +43,7 @@ export default function MemberList({ members = [], activeRoom, currentUser }) {
   };
 
   const isOwner = (memberId) => {
-    if (activeRoom && activeRoom.owner_id) return activeRoom.owner_id === memberId;
-    return memberId === 1;
+    return Boolean(activeRoom && activeRoom.owner_id === memberId);
   };
 
   return (
@@ -179,14 +143,14 @@ export default function MemberList({ members = [], activeRoom, currentUser }) {
               </div>
               <div className="profile-stat-value" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-cyan)', marginTop: '4px' }}>
                 <HardDrive size={16} />
-                <span>{formatBytes(hoveredMember.storage_limit)}</span>
+                <span>{formatBytes(hoveredMember.allocated_bytes || 0)}</span>
               </div>
             </div>
 
             {/* Files Hosted Metric */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
               <FileText size={14} color="var(--accent-indigo)" />
-              <span>Hosts {hoveredMember.files_count || 3} Files in this Room</span>
+              <span>Hosts {hoveredMember.files_count || 0} Files in this Room</span>
             </div>
           </div>
         </div>

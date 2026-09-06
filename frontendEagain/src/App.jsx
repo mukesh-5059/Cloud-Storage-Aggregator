@@ -7,6 +7,7 @@ import FileExplorer from './components/FileExplorer';
 import AuthScreen from './components/AuthScreen';
 import CreateJoinRoomModal from './components/modals/CreateJoinRoomModal';
 import AllocateStorageModal from './components/modals/AllocateStorageModal';
+import UserProfileModal from './components/modals/UserProfileModal';
 
 const BACKEND_URL = 'http://localhost:8000';
 const CLIENT_ID = '338846147570-nqc50noev8fn4ma36hrpgaltq7jr43k4.apps.googleusercontent.com';
@@ -28,6 +29,7 @@ export default function App() {
   // Modals state
   const [isCreateJoinModalOpen, setIsCreateJoinModalOpen] = useState(false);
   const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Global Keydown listener for Esc modal closing
   useEffect(() => {
@@ -35,6 +37,7 @@ export default function App() {
       if (e.key === 'Escape') {
         setIsCreateJoinModalOpen(false);
         setIsAllocateModalOpen(false);
+        setIsProfileModalOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -133,6 +136,25 @@ export default function App() {
     setCurrentUser(null);
     localStorage.removeItem('app_jwt');
     showToast('Logged out');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!appJwt) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/users/me`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${appJwt}` }
+      });
+      if (res.ok) {
+        handleLogout();
+        showToast('Account permanently deleted');
+      } else {
+        const err = await res.json();
+        setError(err.detail || 'Failed to delete account');
+      }
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const fetchMyProfile = async () => {
@@ -285,7 +307,7 @@ export default function App() {
         onSelectRoom={selectRoom}
         onOpenCreateJoinModal={() => setIsCreateJoinModalOpen(true)}
         currentUser={currentUser}
-        onLogout={handleLogout}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
       />
 
       {/* Main Workspace Window */}
@@ -303,15 +325,17 @@ export default function App() {
             {/* Prominent Pooled Storage Hero (Top 25-35%) */}
             <StorageHero
               activeRoom={selectedRoom}
-              totalUsedBytes={12400000000}
-              totalCapacityBytes={50000000000}
+              appJwt={appJwt}
               onOpenAllocateModal={() => setIsAllocateModalOpen(true)}
+              refreshTrigger={copiedCode}
             />
 
             {/* Central Filesystem Explorer (Below Hero) */}
             <FileExplorer
               activeRoom={selectedRoom}
               currentUser={currentUser}
+              appJwt={appJwt}
+              onTriggerRefresh={() => setCopiedCode(prev => !prev)}
             />
           </div>
 
@@ -337,7 +361,20 @@ export default function App() {
         isOpen={isAllocateModalOpen}
         onClose={() => setIsAllocateModalOpen(false)}
         activeRoom={selectedRoom}
-        onAllocate={(bytes) => showToast(`Allocated quota updated!`)}
+        appJwt={appJwt}
+        currentUser={currentUser}
+        onAllocateSuccess={(bytes) => {
+          showToast(`Allocated quota updated!`);
+          setCopiedCode(prev => !prev);
+        }}
+      />
+
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onDeleteAccount={handleDeleteAccount}
       />
     </div>
   );

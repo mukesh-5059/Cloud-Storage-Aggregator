@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
+from datetime import datetime
 
 class GoogleSignUpRequest(BaseModel):
     code: str
@@ -15,6 +16,8 @@ class UserResponse(BaseModel):
     name: str
     storage_limit: Optional[int] = None
     storage_usage: Optional[int] = None
+    allocated_bytes: Optional[int] = 0
+    files_count: Optional[int] = 0
 
     class Config:
         from_attributes = True
@@ -46,6 +49,46 @@ class RoomJoin(BaseModel):
 class RoomResponse(BaseModel):
     id: int
     name: str
+    owner_id: int
 
     class Config:
         from_attributes = True
+
+class StorageContributeRequest(BaseModel):
+    allocated_bytes: int
+
+class ContributionResponse(BaseModel):
+    room_id: int
+    user_id: int
+    allocated_bytes: int
+    used_bytes: int
+    gdrive_folder_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class FolderCreateRequest(BaseModel):
+    name: str
+    parent_id: Optional[int] = None
+
+class FileMoveRequest(BaseModel):
+    new_parent_id: Optional[int] = None
+
+class FileItemResponse(BaseModel):
+    id: int
+    room_id: int
+    parent_id: Optional[int] = None
+    name: str
+    is_folder: bool
+    size_bytes: int
+    mime_type: Optional[str] = None
+    uploader_id: Optional[int] = None
+    storage_user_id: Optional[int] = None
+    uploader_name: Optional[str] = None
+    host_name: Optional[str] = None
+    gdrive_file_id: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+

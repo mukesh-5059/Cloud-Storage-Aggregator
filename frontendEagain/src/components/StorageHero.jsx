@@ -1,13 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HardDrive, Plus, Upload, FolderPlus, Folder, PlusCircle } from 'lucide-react';
+
+const BACKEND_URL = 'http://localhost:8000';
 
 export default function StorageHero({
   activeRoom,
-  totalUsedBytes = 12400000000,
-  totalCapacityBytes = 50000000000,
-  onOpenAllocateModal
+  appJwt,
+  onOpenAllocateModal,
+  refreshTrigger
 }) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [storageData, setStorageData] = useState({ total_allocated_bytes: 0, total_used_bytes: 0 });
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (activeRoom && appJwt) {
+      fetchStorageSummary();
+    } else {
+      setStorageData({ total_allocated_bytes: 0, total_used_bytes: 0 });
+    }
+  }, [activeRoom, appJwt, refreshTrigger]);
+
+  const fetchStorageSummary = async () => {
+    if (!activeRoom || !appJwt) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/rooms/${activeRoom.id}/storage`, {
+        headers: { Authorization: `Bearer ${appJwt}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStorageData(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch storage summary:", err);
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !activeRoom || !appJwt) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/files/room/${activeRoom.id}/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${appJwt}` },
+        body: formData
+      });
+      if (res.ok) {
+        fetchStorageSummary();
+        window.location.reload(); // Simple refresh to show new file
+      } else {
+        const errData = await res.json();
+        alert(errData.detail || 'Upload failed');
+      }
+    } catch (err) {
+      console.error("File upload error:", err);
+    }
+  };
 
   const formatBytes = (bytes) => {
     if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
@@ -17,12 +68,21 @@ export default function StorageHero({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const totalUsedBytes = storageData.total_used_bytes || 0;
+  const totalCapacityBytes = storageData.total_allocated_bytes || 0;
+
   const percentage = totalCapacityBytes > 0
     ? Math.min(100, Math.round((totalUsedBytes / totalCapacityBytes) * 100))
     : 0;
 
   return (
     <section className="storage-hero-dashboard">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        style={{ display: 'none' }} 
+        onChange={handleFileUpload} 
+      />
       {/* Top Row: Metric & Action Buttons */}
       <div className="storage-hero-top">
         <div className="hero-metric-group">
@@ -36,33 +96,15 @@ export default function StorageHero({
         </div>
 
         <div className="hero-actions">
-          {/* + Upload Dropdown */}
-          <div style={{ position: 'relative' }}>
+          {activeRoom && (
             <button 
               className="btn-primary-action"
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              onClick={() => fileInputRef.current?.click()}
             >
               <Plus size={18} />
-              <span>Upload</span>
+              <span>Upload File</span>
             </button>
-
-            {isDropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                  <Upload size={16} />
-                  <span>Upload File</span>
-                </div>
-                <div className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                  <FolderPlus size={16} />
-                  <span>Upload Folder</span>
-                </div>
-                <div className="dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                  <Folder size={16} />
-                  <span>New Folder</span>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Allocate Storage Button */}
           {activeRoom && (
@@ -85,9 +127,10 @@ export default function StorageHero({
 
         <div className="hero-progress-meta">
           <span>{percentage}% Space Consumed</span>
-          <span>Available: {formatBytes(totalCapacityBytes - totalUsedBytes)}</span>
+          <span>Available: {formatBytes(Math.max(0, totalCapacityBytes - totalUsedBytes))}</span>
         </div>
       </div>
     </section>
   );
 }
+

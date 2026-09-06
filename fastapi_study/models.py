@@ -1,13 +1,19 @@
-from sqlalchemy import Column, Integer, BigInteger, String, ForeignKey, Table
+from sqlalchemy import Column, Integer, BigInteger, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from database import Base
 
-user_rooms = Table(
-    "user_rooms",
-    Base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
-    Column("room_id", Integer, ForeignKey("rooms.id"), primary_key=True)
-)
+class UserRoom(Base):
+    __tablename__ = "user_rooms"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    room_id = Column(Integer, ForeignKey("rooms.id"), primary_key=True)
+    allocated_bytes = Column(BigInteger, default=0, nullable=False)
+    used_bytes = Column(BigInteger, default=0, nullable=False)
+    gdrive_folder_id = Column(String, nullable=True)
+
+    user = relationship("User", back_populates="room_memberships")
+    room = relationship("Room", back_populates="user_memberships")
 
 class User(Base):
     __tablename__ = "users"
@@ -21,7 +27,9 @@ class User(Base):
     storage_usage = Column(BigInteger, nullable=True)
 
     created_rooms = relationship("Room", back_populates="owner")
-    joined_rooms = relationship("Room", secondary=user_rooms, back_populates="members")
+    room_memberships = relationship("UserRoom", back_populates="user")
+    uploaded_files = relationship("FileItem", foreign_keys="FileItem.uploader_id", back_populates="uploader")
+    hosted_files = relationship("FileItem", foreign_keys="FileItem.storage_user_id", back_populates="storage_user")
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -32,4 +40,27 @@ class Room(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     owner = relationship("User", back_populates="created_rooms")
-    members = relationship("User", secondary=user_rooms, back_populates="joined_rooms")
+    user_memberships = relationship("UserRoom", back_populates="room")
+    files = relationship("FileItem", back_populates="room")
+
+class FileItem(Base):
+    __tablename__ = "file_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
+    parent_id = Column(Integer, ForeignKey("file_items.id"), nullable=True)
+    name = Column(String, nullable=False)
+    is_folder = Column(Boolean, default=False, nullable=False)
+    size_bytes = Column(BigInteger, default=0, nullable=False)
+    mime_type = Column(String, nullable=True)
+    uploader_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    storage_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    gdrive_file_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    room = relationship("Room", back_populates="files")
+    parent = relationship("FileItem", remote_side=[id], backref="children")
+    uploader = relationship("User", foreign_keys=[uploader_id], back_populates="uploaded_files")
+    storage_user = relationship("User", foreign_keys=[storage_user_id], back_populates="hosted_files")
+
+

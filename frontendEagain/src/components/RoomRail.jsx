@@ -7,7 +7,7 @@ export default function RoomRail({
   onSelectRoom,
   onOpenCreateJoinModal,
   currentUser,
-  onLogout
+  onOpenProfileModal
 }) {
   return (
     <div className="room-rail">
@@ -55,13 +55,22 @@ export default function RoomRail({
 
       <div className="rail-divider" />
 
-      {/* User Profile & Logout Bottom Icons */}
+      {/* User Profile Bottom Icon */}
       {currentUser && (
         <div className="tooltip-wrapper">
-          <div className="rail-item" onClick={onLogout} style={{ color: 'var(--accent-rose)' }}>
-            <LogOut size={20} />
+          <div 
+            className="rail-item" 
+            onClick={onOpenProfileModal} 
+            style={{ 
+              background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo))', 
+              color: '#ffffff',
+              fontWeight: 700,
+              fontSize: '1rem'
+            }}
+          >
+            {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
           </div>
-          <div className="tooltip">Sign Out ({currentUser.email})</div>
+          <div className="tooltip">Profile & Account ({currentUser.name})</div>
         </div>
       )}
     </div>
