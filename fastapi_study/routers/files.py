@@ -38,7 +38,7 @@ def get_fresh_google_access_token(user: User, db: Session) -> Optional[str]:
             "grant_type": "refresh_token"
         }
         try:
-            res = requests.post(token_url, data=data)
+            res = requests.post(token_url, data=data, timeout=5.0)
             if res.status_code == 200:
                 tokens = res.json()
                 new_acc_token = tokens.get("access_token")
@@ -201,7 +201,8 @@ def create_upload_intent(
         gdrive_res = requests.post(
             "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
             headers=headers,
-            data=json.dumps(metadata)
+            data=json.dumps(metadata),
+            timeout=10.0
         )
 
         if gdrive_res.status_code == 200 and "Location" in gdrive_res.headers:
@@ -268,7 +269,7 @@ def complete_upload(
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
             }
-            requests.post(perm_url, headers=headers, data=json.dumps(perm_data))
+            requests.post(perm_url, headers=headers, data=json.dumps(perm_data), timeout=10.0)
         except Exception as e:
             logger.warning(f"Could not set 'anyone/reader' permission on Drive file {payload.gdrive_file_id}: {e}")
 
@@ -328,7 +329,7 @@ def download_file(
     try:
         drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}?alt=media"
         headers = {"Authorization": f"Bearer {access_token}"}
-        gdrive_res = requests.get(drive_url, headers=headers, stream=True)
+        gdrive_res = requests.get(drive_url, headers=headers, stream=True, timeout=30.0)
 
         if gdrive_res.status_code == 200:
             def iterfile():
@@ -412,7 +413,7 @@ def rename_file(
                     "Authorization": f"Bearer {access_token}",
                     "Content-Type": "application/json"
                 }
-                gdrive_res = requests.patch(drive_url, headers=headers, data=json.dumps({"name": new_name}))
+                gdrive_res = requests.patch(drive_url, headers=headers, data=json.dumps({"name": new_name}), timeout=10.0)
                 if gdrive_res.status_code == 200:
                     logger.info(f"Renamed file {item.gdrive_file_id} on Google Drive to '{new_name}'")
                 else:
@@ -445,7 +446,7 @@ def delete_item_recursively(item: FileItem, db: Session):
                 try:
                     drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}"
                     headers = {"Authorization": f"Bearer {access_token}"}
-                    requests.delete(drive_url, headers=headers)
+                    requests.delete(drive_url, headers=headers, timeout=10.0)
                 except Exception as e:
                     logger.warning(f"Failed to delete file {item.gdrive_file_id} from Google Drive: {e}")
 

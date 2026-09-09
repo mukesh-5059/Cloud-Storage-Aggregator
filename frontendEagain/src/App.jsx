@@ -314,9 +314,10 @@ export default function App() {
   const handleGoogleAuth = (mode) => {
     setError(null);
     setIsAuthenticating(true);
-    if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
+
+    if (!window.google || !window.google.accounts) {
       setTimeout(() => {
-        if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+        if (window.google && window.google.accounts) {
           handleGoogleAuth(mode);
         } else {
           setError('Google Identity Services SDK is still loading. Please check your internet connection or refresh the page.');
@@ -326,51 +327,132 @@ export default function App() {
       return;
     }
 
-    const codeClient = window.google.accounts.oauth2.initCodeClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file',
-      ux_mode: 'popup',
-      callback: async (response) => {
-        if (response.error) {
-          setError(`Google Auth Error: ${response.error_description || response.error}`);
-          setIsAuthenticating(false);
-          return;
-        }
+    if (mode === 'signup') {
+      if (!window.google.accounts.oauth2) {
+        setError('Google OAuth2 client failed to initialize.');
+        setIsAuthenticating(false);
+        return;
+      }
+      const codeClient = window.google.accounts.oauth2.initCodeClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file',
+        ux_mode: 'popup',
+        callback: async (response) => {
+          if (response.error) {
+            setError(`Google Auth Error: ${response.error_description || response.error}`);
+            setIsAuthenticating(false);
+            return;
+          }
 
-        if (response.code) {
-          try {
-            const endpoint = mode === 'signup' ? '/auth/signup' : '/auth/login';
-            const payload = mode === 'signup' 
-              ? { code: response.code, name: userNameInput }
-              : { code: response.code };
+          if (response.code) {
+            try {
+              const res = await fetch(`${BACKEND_URL}/auth/signup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: response.code, name: userNameInput })
+              });
 
-            const res = await fetch(`${BACKEND_URL}${endpoint}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-
-            const data = await res.json();
-            if (res.ok) {
-              localStorage.setItem('app_jwt', data.access_token);
-              setAppJwt(data.access_token);
-              setCurrentUser(data.user);
-              showToast(`Welcome back, ${data.user.name}!`);
-            } else {
-              setError(data.detail || 'Authentication failed');
+              const data = await res.json();
+              if (res.ok) {
+                localStorage.setItem('app_jwt', data.access_token);
+                setAppJwt(data.access_token);
+                setCurrentUser(data.user);
+                showToast(`Welcome ${data.user.name}!`);
+              } else {
+                setError(data.detail || 'Sign up failed');
+              }
+            } catch (err) {
+              setError('Server connection error during sign up');
+            } finally {
+              setIsAuthenticating(false);
             }
-          } catch (err) {
-            setError('Server connection error during authentication');
-          } finally {
+          } else {
             setIsAuthenticating(false);
           }
-        } else {
-          setIsAuthenticating(false);
         }
-      }
-    });
+      });
+      codeClient.requestCode();
+    } else {
+      // mode === 'login' -> Approach A: Google ID Token (Sign In with Google, NO Drive Consent Screen)
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          if (response.credential) {
+            try {
+              const res = await fetch(`${BACKEND_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_token: response.credential })
+              });
 
-    codeClient.requestCode();
+              const data = await res.json();
+              if (res.ok) {
+                localStorage.setItem('app_jwt', data.access_token);
+                setAppJwt(data.access_token);
+                setCurrentUser(data.user);
+                showToast(`Welcome back, ${data.user.name}!`);
+              } else {
+                setError(data.detail || 'Login failed');
+              }
+            } catch (err) {
+              setError('Server connection error during login');
+            } finally {
+              setIsAuthenticating(false);
+            }
+          } else {
+            setIsAuthenticating(false);
+          }
+        }
+      });
+
+      // Show Google One Tap or Account Selector Modal
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          // Fallback if One-Tap prompt is suppressed or closed: use lightweight tokenClient with email scope only (no consent screen)
+          if (window.google.accounts.oauth2) {
+            const tokenClient = window.google.accounts.oauth2.initTokenClient({
+              client_id: GOOGLE_CLIENT_ID,
+              scope: 'email',
+              callback: async (resp) => {
+                if (resp.access_token) {
+                  try {
+                    const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                      headers: { Authorization: `Bearer ${resp.access_token}` }
+                    });
+                    if (userinfoRes.ok) {
+                      const uinfo = await userinfoRes.json();
+                      const res = await fetch(`${BACKEND_URL}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: uinfo.email })
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        localStorage.setItem('app_jwt', data.access_token);
+                        setAppJwt(data.access_token);
+                        setCurrentUser(data.user);
+                        showToast(`Welcome back, ${data.user.name}!`);
+                      } else {
+                        setError(data.detail || 'Login failed');
+                      }
+                    }
+                  } catch (err) {
+                    setError('Login connection error');
+                  } finally {
+                    setIsAuthenticating(false);
+                  }
+                } else {
+                  setIsAuthenticating(false);
+                }
+              }
+            });
+            tokenClient.requestAccessToken();
+          } else {
+            setIsAuthenticating(false);
+          }
+        }
+      });
+    }
   };
 
   // Handlers for Room Operations

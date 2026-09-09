@@ -184,7 +184,7 @@ def delete_my_account(
                 if user_access_token and target_access_token and target_user and file_item.gdrive_file_id:
                     try:
                         download_url = f"https://www.googleapis.com/drive/v3/files/{file_item.gdrive_file_id}?alt=media"
-                        dl_res = requests.get(download_url, headers={"Authorization": f"Bearer {user_access_token}"}, stream=True)
+                        dl_res = requests.get(download_url, headers={"Authorization": f"Bearer {user_access_token}"}, stream=True, timeout=30.0)
 
                         if dl_res.status_code == 200:
                             metadata = {
@@ -201,7 +201,8 @@ def delete_my_account(
                             up_res = requests.post(
                                 "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
                                 headers={"Authorization": f"Bearer {target_access_token}"},
-                                files=files_payload
+                                files=files_payload,
+                                timeout=30.0
                             )
 
                             if up_res.status_code == 200:
@@ -210,11 +211,12 @@ def delete_my_account(
                                 requests.post(
                                     perm_url,
                                     headers={"Authorization": f"Bearer {target_access_token}", "Content-Type": "application/json"},
-                                    data=json.dumps({"role": "reader", "type": "anyone"})
+                                    data=json.dumps({"role": "reader", "type": "anyone"}),
+                                    timeout=10.0
                                 )
 
                                 del_url = f"https://www.googleapis.com/drive/v3/files/{file_item.gdrive_file_id}"
-                                requests.delete(del_url, headers={"Authorization": f"Bearer {user_access_token}"})
+                                requests.delete(del_url, headers={"Authorization": f"Bearer {user_access_token}"}, timeout=10.0)
                                 logger.info(f"Physically migrated file '{file_item.name}' from User {current_user.id} GDrive to User {target_user.id} GDrive ({new_gdrive_id})")
                     except Exception as e:
                         logger.error(f"Failed physical Drive migration for file {file_item.id}: {e}")
@@ -230,7 +232,7 @@ def delete_my_account(
                 if user_access_token and file_item.gdrive_file_id:
                     try:
                         del_url = f"https://www.googleapis.com/drive/v3/files/{file_item.gdrive_file_id}"
-                        requests.delete(del_url, headers={"Authorization": f"Bearer {user_access_token}"})
+                        requests.delete(del_url, headers={"Authorization": f"Bearer {user_access_token}"}, timeout=10.0)
                         logger.info(f"Physically deleted cascaded file '{file_item.name}' ({file_item.gdrive_file_id}) from User {current_user.id}'s GDrive")
                     except Exception as e:
                         logger.warning(f"Could not delete cascaded file from Drive: {e}")
@@ -242,7 +244,7 @@ def delete_my_account(
         if user_access_token and membership.gdrive_folder_id:
             try:
                 folder_del_url = f"https://www.googleapis.com/drive/v3/files/{membership.gdrive_folder_id}"
-                requests.delete(folder_del_url, headers={"Authorization": f"Bearer {user_access_token}"})
+                requests.delete(folder_del_url, headers={"Authorization": f"Bearer {user_access_token}"}, timeout=10.0)
                 logger.info(f"Deleted room contribution folder '{membership.gdrive_folder_id}' from User ID {current_user.id}'s Google Drive")
             except Exception as e:
                 logger.warning(f"Could not delete contribution folder {membership.gdrive_folder_id} from Drive: {e}")

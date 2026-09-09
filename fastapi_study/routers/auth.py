@@ -8,6 +8,8 @@ from database import get_db
 from models import User
 from schemas import GoogleSignUpRequest, GoogleLoginRequest, TokenResponse, UserResponse
 from auth_utils import create_access_token
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
 logger = logging.getLogger("auth")
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -49,7 +51,15 @@ def signup(payload: GoogleSignUpRequest, db: Session = Depends(get_db)):
         "grant_type": "authorization_code"
     }
 
-    token_response = requests.post(token_url, data=data)
+    try:
+        token_response = requests.post(token_url, data=data, timeout=10.0)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Google Token Exchange connection error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=f"Connection to Google OAuth server timed out: {e}"
+        )
+
     if token_response.status_code != 200:
         logger.error(f"Google Code Exchange failed ({token_response.status_code}): {token_response.text}")
         raise HTTPException(
@@ -63,7 +73,15 @@ def signup(payload: GoogleSignUpRequest, db: Session = Depends(get_db)):
 
     userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
     headers = {"Authorization": f"Bearer {google_access_token}"}
-    userinfo_res = requests.get(userinfo_url, headers=headers)
+    try:
+        userinfo_res = requests.get(userinfo_url, headers=headers, timeout=5.0)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch profile from Google due to network timeout: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Google profile request timed out"
+        )
+
     if userinfo_res.status_code != 200:
         logger.error(f"Failed to fetch profile from Google ({userinfo_res.status_code})")
         raise HTTPException(
@@ -93,7 +111,7 @@ def signup(payload: GoogleSignUpRequest, db: Session = Depends(get_db)):
     storage_usage = None
     try:
         quota_url = "https://www.googleapis.com/drive/v3/about?fields=storageQuota"
-        quota_res = requests.get(quota_url, headers=headers)
+        quota_res = requests.get(quota_url, headers=headers, timeout=5.0)
         if quota_res.status_code == 200:
             quota_data = quota_res.json().get("storageQuota", {})
             if quota_data.get("limit"):
@@ -130,7 +148,24 @@ def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
 
     target_email = payload.email
 
-    # If code was passed instead of direct email, resolve email via Google userinfo
+    # Option 1: Verify Google ID token directly (< 1ms, zero server-to-server HTTP delay)
+    if not target_email and payload.id_token:
+        try:
+            id_info = google_id_token.verify_oauth2_token(
+                payload.id_token,
+                google_requests.Request(),
+                CLIENT_ID
+            )
+            target_email = id_info.get("email")
+            logger.info(f"Verified Google ID token for email: {target_email}")
+        except Exception as e:
+            logger.error(f"Failed to verify Google ID Token: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid Google ID Token: {e}"
+            )
+
+    # Option 2: Fallback to authorization code exchange with 5s timeout
     if not target_email and payload.code:
         token_url = "https://oauth2.googleapis.com/token"
         data = {
@@ -140,18 +175,25 @@ def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
             "redirect_uri": "postmessage",
             "grant_type": "authorization_code"
         }
-        token_response = requests.post(token_url, data=data)
-        if token_response.status_code == 200:
-            tokens = token_response.json()
-            access_tok = tokens.get("access_token")
-            userinfo_res = requests.get("https://www.googleapis.com/oauth2/v3/userinfo", headers={"Authorization": f"Bearer {access_tok}"})
-            if userinfo_res.status_code == 200:
-                target_email = userinfo_res.json().get("email")
+        try:
+            token_response = requests.post(token_url, data=data, timeout=5.0)
+            if token_response.status_code == 200:
+                tokens = token_response.json()
+                access_tok = tokens.get("access_token")
+                userinfo_res = requests.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {access_tok}"},
+                    timeout=5.0
+                )
+                if userinfo_res.status_code == 200:
+                    target_email = userinfo_res.json().get("email")
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Fallback authorization code exchange failed/timed out: {e}")
 
     if not target_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google email or valid code is required for Log-In"
+            detail="Google email, valid ID token, or authorization code is required for Log-In"
         )
 
     user = db.query(User).filter(User.email == target_email).first()

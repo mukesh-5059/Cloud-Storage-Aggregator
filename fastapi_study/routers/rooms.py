@@ -176,7 +176,8 @@ def contribute_storage(
             gdrive_res = requests.post(
                 "https://www.googleapis.com/drive/v3/files",
                 headers=headers,
-                data=json.dumps(folder_metadata)
+                data=json.dumps(folder_metadata),
+                timeout=10.0
             )
 
             if gdrive_res.status_code == 200:
