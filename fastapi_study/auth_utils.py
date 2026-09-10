@@ -12,7 +12,20 @@ SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev_secret_key_change_in_producti
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/google")
+from typing import Optional
+from fastapi import Depends, HTTPException, status, Query
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
+from database import get_db
+from models import User
+
+import os
+
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev_secret_key_change_in_production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_HOURS = 24
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/google", auto_error=False)
 
 def create_access_token(user_id: int) -> str:
     expiration = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
@@ -22,12 +35,19 @@ def create_access_token(user_id: int) -> str:
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def get_current_user(
+    header_token: Optional[str] = Depends(oauth2_scheme),
+    query_token: Optional[str] = Query(None, alias="token"),
+    db: Session = Depends(get_db)
+) -> User:
+    token = header_token or query_token
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate authentication credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not token:
+        raise credentials_exception
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id_str: str = payload.get("sub")
@@ -41,3 +61,4 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
     return user
+

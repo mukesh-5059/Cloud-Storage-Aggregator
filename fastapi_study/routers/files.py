@@ -1,12 +1,13 @@
 import logging
 import json
-import requests
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, Response, Request
-from fastapi.responses import StreamingResponse
+import asyncio
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, Response, Request, BackgroundTasks
+from fastapi.responses import StreamingResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from database import get_db
+from database import get_db, SessionLocal
 from models import User, Room, UserRoom, FileItem
 from schemas import (
     FileItemResponse,
@@ -15,6 +16,8 @@ from schemas import (
     FileRenameRequest,
     UploadIntentRequest,
     UploadIntentResponse,
+    UploadIntentBatchRequest,
+    UploadIntentBatchResponse,
     UploadCompleteRequest
 )
 from auth_utils import get_current_user
@@ -24,11 +27,13 @@ logger = logging.getLogger("files")
 router = APIRouter(prefix="/files", tags=["Files"])
 
 
-
-def get_fresh_google_access_token(user: User, db: Session) -> Optional[str]:
-    """Retrieves a fresh Google OAuth access token for a user, refreshing it if possible."""
+async def get_fresh_google_access_token(user: User, db: Session, force_refresh: bool = False) -> Optional[str]:
+    """Retrieves access token for a user, using cached google_access_token unless force_refresh is True or token is missing."""
     if not user:
         return None
+    if user.google_access_token and not force_refresh:
+        return user.google_access_token
+
     if user.google_refresh_token:
         token_url = "https://oauth2.googleapis.com/token"
         data = {
@@ -38,19 +43,61 @@ def get_fresh_google_access_token(user: User, db: Session) -> Optional[str]:
             "grant_type": "refresh_token"
         }
         try:
-            res = requests.post(token_url, data=data, timeout=5.0)
-            if res.status_code == 200:
-                tokens = res.json()
-                new_acc_token = tokens.get("access_token")
-                if new_acc_token:
-                    user.google_access_token = new_acc_token
-                    db.commit()
-                    return new_acc_token
+            logger.info(f"Refreshing Google access token for User ID {user.id} (force_refresh={force_refresh})...")
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.post(token_url, data=data)
+                if res.status_code == 200:
+                    tokens = res.json()
+                    new_acc_token = tokens.get("access_token")
+                    if new_acc_token:
+                        user.google_access_token = new_acc_token
+                        db.commit()
+                        logger.info(f"Successfully refreshed Google access token for User ID {user.id}")
+                        return new_acc_token
+                else:
+                    logger.error(f"Google Token Refresh API failed for User ID {user.id} ({res.status_code}): {res.text}")
         except Exception as e:
             logger.warning(f"Failed to refresh Google access token for User ID {user.id}: {e}")
-    return user.google_access_token
+
+    return user.google_access_token if not force_refresh else None
 
 
+async def set_file_permission_background(gdrive_file_id: str, storage_user_id: int):
+    """Sets 'anyone/reader' permission on Google Drive file in background task with token auto-refresh."""
+    if not storage_user_id or not gdrive_file_id:
+        return
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == storage_user_id).first()
+        if not user:
+            return
+        access_token = await get_fresh_google_access_token(user, db)
+        if not access_token:
+            return
+
+        perm_url = f"https://www.googleapis.com/drive/v3/files/{gdrive_file_id}/permissions"
+        perm_data = {"role": "reader", "type": "anyone"}
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.post(perm_url, headers=headers, json=perm_data)
+            if res.status_code == 401:
+                logger.warning(f"Permission API got 401 for User ID {storage_user_id}. Force-refreshing token...")
+                fresh_token = await get_fresh_google_access_token(user, db, force_refresh=True)
+                if fresh_token:
+                    headers["Authorization"] = f"Bearer {fresh_token}"
+                    res = await client.post(perm_url, headers=headers, json=perm_data)
+
+            if res.status_code in (200, 201):
+                logger.info(f"Successfully set 'anyone/reader' permission for Drive file {gdrive_file_id} in background")
+            else:
+                logger.warning(f"Google Drive permission API status {res.status_code} for file {gdrive_file_id}: {res.text}")
+    except Exception as e:
+        logger.warning(f"Could not set 'anyone/reader' permission on Drive file {gdrive_file_id}: {e}")
+    finally:
+        db.close()
 
 
 def check_membership(user_id: int, room_id: int, db: Session):
@@ -87,22 +134,26 @@ def list_files(
 @router.get("/room/{room_id}/search", response_model=List[FileItemResponse])
 def search_files(
     room_id: int,
-    q: str = Query(..., min_length=1, description="Search term across room filesystem"),
+    q: str = Query(..., description="Search query string for matching file/folder names"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     check_membership(current_user.id, room_id, db)
 
-    results = db.query(FileItem).filter(
+    if not q or not q.strip():
+        return []
+
+    query_str = f"%{q.strip()}%"
+    files = db.query(FileItem).filter(
         FileItem.room_id == room_id,
-        FileItem.name.ilike(f"%{q}%")
+        FileItem.name.ilike(query_str)
     ).all()
 
-    for item in results:
+    for item in files:
         item.uploader_name = item.uploader.name if item.uploader else "Unknown"
         item.host_name = item.storage_user.name if item.storage_user else "Unknown"
 
-    return results
+    return files
 
 
 @router.post("/room/{room_id}/folder", response_model=FileItemResponse)
@@ -114,126 +165,164 @@ def create_folder(
 ):
     check_membership(current_user.id, room_id, db)
 
+    folder_name = payload.name.strip()
+    if not folder_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Folder name cannot be empty")
+
     if payload.parent_id:
         parent = db.query(FileItem).filter(FileItem.id == payload.parent_id, FileItem.room_id == room_id).first()
         if not parent or not parent.is_folder:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid parent folder ID")
 
-    folder_item = FileItem(
+    new_folder = FileItem(
         room_id=room_id,
         parent_id=payload.parent_id,
-        name=payload.name,
+        name=folder_name,
         is_folder=True,
         size_bytes=0,
-        uploader_id=current_user.id
+        uploader_id=current_user.id,
+        storage_user_id=None
     )
-    db.add(folder_item)
+
+    db.add(new_folder)
     db.commit()
-    db.refresh(folder_item)
-    logger.info(f"Created folder '{folder_item.name}' (ID {folder_item.id}) in Room ID {room_id}")
-    return folder_item
+    db.refresh(new_folder)
+
+    new_folder.uploader_name = current_user.name
+    new_folder.host_name = "N/A (Folder)"
+
+    logger.info(f"Created folder '{folder_name}' (ID {new_folder.id}) in Room ID {room_id}")
+    return new_folder
 
 
 # ==========================================
-# 3-Step Resumable Upload Flow (Endpoints 1 & 2)
+# 3-Step Resumable Upload Flow
 # ==========================================
 
-@router.post("/room/{room_id}/upload-intent", response_model=UploadIntentResponse)
-def create_upload_intent(
+@router.post("/room/{room_id}/upload-intent-batch", response_model=UploadIntentBatchResponse)
+async def upload_intent_batch(
     room_id: int,
-    payload: UploadIntentRequest,
+    payload: UploadIntentBatchRequest,
     request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Step 1 of 3-step upload: Generates Google Drive Resumable Upload URL."""
+    """Step 1 of 3 (Batch): Requests upload URLs for multiple files in parallel via asyncio.gather."""
     check_membership(current_user.id, room_id, db)
+    if not payload.items:
+        return UploadIntentBatchResponse(intents=[])
 
-    if payload.parent_id:
-        parent = db.query(FileItem).filter(FileItem.id == payload.parent_id, FileItem.room_id == room_id).first()
-        if not parent or not parent.is_folder:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid parent folder ID")
+    client_origin = request.headers.get("origin") or "http://localhost:3000"
 
-    # Find room contributor with highest available free capacity in user_rooms
-    memberships = db.query(UserRoom).filter(UserRoom.room_id == room_id).all()
-    memberships.sort(key=lambda m: (m.allocated_bytes - m.used_bytes), reverse=True)
+    contributors = db.query(UserRoom).filter(UserRoom.room_id == room_id).all()
+    if not contributors:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No storage contributors found in room")
 
-    target_contrib = None
-    for m in memberships:
-        if (m.allocated_bytes - m.used_bytes) >= payload.size_bytes:
-            target_contrib = m
-            break
+    contrib_free_bytes = {
+        c.user_id: (c.allocated_bytes - c.used_bytes)
+        for c in contributors
+    }
 
-    if not target_contrib:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Room storage quota exceeded! No room contributor has enough free quota."
-        )
+    file_host_assignments = []
+    user_ids_needed = set()
 
-    storage_user = db.query(User).filter(User.id == target_contrib.user_id).first()
-    if not storage_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Target host contributor user not found")
+    for item in payload.items:
+        target_contrib = None
+        for contrib in contributors:
+            if contrib_free_bytes[contrib.user_id] >= item.size_bytes:
+                target_contrib = contrib
+                contrib_free_bytes[contrib.user_id] -= item.size_bytes
+                break
 
-    access_token = get_fresh_google_access_token(storage_user, db)
-    if not access_token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Host contributor has no active Google OAuth authorization."
-        )
-
-    try:
-        metadata = {
-            "name": payload.name,
-            "mimeType": payload.mime_type or "application/octet-stream"
-        }
-        if target_contrib.gdrive_folder_id:
-            metadata["parents"] = [target_contrib.gdrive_folder_id]
-
-        client_origin = request.headers.get("origin") or "http://localhost:3000"
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "X-Upload-Content-Type": payload.mime_type or "application/octet-stream",
-            "X-Upload-Content-Length": str(payload.size_bytes),
-            "Content-Type": "application/json; charset=UTF-8",
-            "Origin": client_origin
-        }
-
-        gdrive_res = requests.post(
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
-            headers=headers,
-            data=json.dumps(metadata),
-            timeout=10.0
-        )
-
-        if gdrive_res.status_code == 200 and "Location" in gdrive_res.headers:
-            upload_url = gdrive_res.headers["Location"]
-            logger.info(f"Generated Google Drive resumable upload URL for '{payload.name}'")
-        else:
-            logger.error(f"Google Drive API intent failed ({gdrive_res.status_code}): {gdrive_res.text}")
+        if not target_contrib:
             raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Google Drive API error: {gdrive_res.text}"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Room storage quota exceeded for file '{item.name}' ({item.size_bytes} bytes)."
             )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error calling Google Drive API for upload intent: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to initiate Google Drive upload: {str(e)}"
-        )
 
-    return UploadIntentResponse(
-        upload_url=upload_url,
-        storage_user_id=target_contrib.user_id,
-        storage_user_name=storage_user.name
-    )
+        file_host_assignments.append((item, target_contrib))
+        user_ids_needed.add(target_contrib.user_id)
+
+    users_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids_needed)).all()}
+
+    tokens_map = {}
+    for uid, user in users_map.items():
+        token = await get_fresh_google_access_token(user, db)
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Host contributor {user.name} has no active Google OAuth authorization."
+            )
+        tokens_map[uid] = token
+
+    semaphore = asyncio.Semaphore(3)
+
+    async def fetch_single_intent(client: httpx.AsyncClient, item: UploadIntentRequest, target_contrib: UserRoom):
+        async with semaphore:
+            storage_user = users_map.get(target_contrib.user_id)
+            access_token = tokens_map.get(target_contrib.user_id)
+
+            metadata = {
+                "name": item.name,
+                "mimeType": item.mime_type or "application/octet-stream"
+            }
+            if target_contrib.gdrive_folder_id:
+                metadata["parents"] = [target_contrib.gdrive_folder_id]
+
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "X-Upload-Content-Type": item.mime_type or "application/octet-stream",
+                "X-Upload-Content-Length": str(item.size_bytes),
+                "Content-Type": "application/json; charset=UTF-8",
+                "Origin": client_origin
+            }
+
+            gdrive_res = await client.post(
+                "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+                headers=headers,
+                json=metadata
+            )
+
+            if gdrive_res.status_code == 401 and storage_user:
+                logger.warning(f"Access token expired (401) for User ID {storage_user.id}. Force-refreshing token...")
+                fresh_token = await get_fresh_google_access_token(storage_user, db, force_refresh=True)
+                if fresh_token:
+                    headers["Authorization"] = f"Bearer {fresh_token}"
+                    gdrive_res = await client.post(
+                        "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+                        headers=headers,
+                        json=metadata
+                    )
+
+            if gdrive_res.status_code == 200 and "Location" in gdrive_res.headers:
+                return UploadIntentResponse(
+                    upload_url=gdrive_res.headers["Location"],
+                    storage_user_id=target_contrib.user_id,
+                    storage_user_name=storage_user.name if storage_user else "Unknown"
+                )
+            else:
+                logger.error(f"Google Drive API intent failed for '{item.name}' ({gdrive_res.status_code}): {gdrive_res.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Google Drive API error for '{item.name}': {gdrive_res.text}"
+                )
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        tasks = []
+        for idx, (item, contrib) in enumerate(file_host_assignments):
+            if idx > 0:
+                await asyncio.sleep(0.05)
+            tasks.append(fetch_single_intent(client, item, contrib))
+        results = await asyncio.gather(*tasks)
+
+    return UploadIntentBatchResponse(intents=list(results))
 
 
 @router.post("/room/{room_id}/complete-upload", response_model=FileItemResponse)
-def complete_upload(
+async def complete_upload(
     room_id: int,
     payload: UploadCompleteRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -258,20 +347,10 @@ def complete_upload(
         )
 
     storage_user = db.query(User).filter(User.id == payload.storage_user_id).first()
-    access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
 
-    # Set file permission to 'anyone/reader' so preview iframe works for all room members
-    if access_token:
-        try:
-            perm_url = f"https://www.googleapis.com/drive/v3/files/{payload.gdrive_file_id}/permissions"
-            perm_data = {"role": "reader", "type": "anyone"}
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json"
-            }
-            requests.post(perm_url, headers=headers, data=json.dumps(perm_data), timeout=10.0)
-        except Exception as e:
-            logger.warning(f"Could not set 'anyone/reader' permission on Drive file {payload.gdrive_file_id}: {e}")
+    # Schedule setting file permission to 'anyone/reader' in background task to avoid blocking API response
+    if payload.storage_user_id:
+        background_tasks.add_task(set_file_permission_background, payload.gdrive_file_id, payload.storage_user_id)
 
     file_item = FileItem(
         room_id=room_id,
@@ -301,7 +380,7 @@ def complete_upload(
 
 
 @router.get("/{file_id}/download")
-def download_file(
+async def download_file(
     file_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -318,41 +397,9 @@ def download_file(
     if not item.gdrive_file_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File has no Google Drive ID stored")
 
-    storage_user = db.query(User).filter(User.id == item.storage_user_id).first() if item.storage_user_id else None
-    if not storage_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Host contributor user record missing")
-
-    access_token = get_fresh_google_access_token(storage_user, db)
-    if not access_token:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Host contributor has no active Google OAuth authorization")
-
-    try:
-        drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}?alt=media"
-        headers = {"Authorization": f"Bearer {access_token}"}
-        gdrive_res = requests.get(drive_url, headers=headers, stream=True, timeout=30.0)
-
-        if gdrive_res.status_code == 200:
-            def iterfile():
-                for chunk in gdrive_res.iter_content(chunk_size=8192):
-                    if chunk:
-                        yield chunk
-
-            return StreamingResponse(
-                iterfile(),
-                media_type=item.mime_type or "application/octet-stream",
-                headers={"Content-Disposition": f'attachment; filename="{item.name}"'}
-            )
-        else:
-            logger.error(f"Google Drive API download failed ({gdrive_res.status_code}): {gdrive_res.text}")
-            raise HTTPException(
-                status_code=gdrive_res.status_code if gdrive_res.status_code in (404, 403, 401) else status.HTTP_502_BAD_GATEWAY,
-                detail=f"Google Drive API download error ({gdrive_res.status_code}): {gdrive_res.text}"
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error downloading from Google Drive API: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Download error: {str(e)}")
+    direct_url = f"https://drive.google.com/uc?id={item.gdrive_file_id}&export=download"
+    logger.info(f"Redirecting download for file '{item.name}' (ID {item.id}) directly to Google Drive CDN")
+    return RedirectResponse(url=direct_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 
 @router.patch("/{file_id}/move", response_model=FileItemResponse)
@@ -384,7 +431,7 @@ def move_file(
 
 
 @router.patch("/{file_id}/rename", response_model=FileItemResponse)
-def rename_file(
+async def rename_file(
     file_id: int,
     payload: FileRenameRequest,
     current_user: User = Depends(get_current_user),
@@ -404,7 +451,7 @@ def rename_file(
 
     if not item.is_folder and item.gdrive_file_id and item.storage_user_id:
         storage_user = db.query(User).filter(User.id == item.storage_user_id).first()
-        access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
+        access_token = await get_fresh_google_access_token(storage_user, db) if storage_user else None
 
         if access_token:
             try:
@@ -413,11 +460,18 @@ def rename_file(
                     "Authorization": f"Bearer {access_token}",
                     "Content-Type": "application/json"
                 }
-                gdrive_res = requests.patch(drive_url, headers=headers, data=json.dumps({"name": new_name}), timeout=10.0)
-                if gdrive_res.status_code == 200:
-                    logger.info(f"Renamed file {item.gdrive_file_id} on Google Drive to '{new_name}'")
-                else:
-                    logger.warning(f"Failed to rename file on Google Drive ({gdrive_res.status_code}): {gdrive_res.text}")
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    gdrive_res = await client.patch(drive_url, headers=headers, json={"name": new_name})
+                    if gdrive_res.status_code == 401 and storage_user:
+                        logger.warning(f"Access token expired (401) for User ID {storage_user.id} during rename. Force refreshing...")
+                        fresh_token = await get_fresh_google_access_token(storage_user, db, force_refresh=True)
+                        if fresh_token:
+                            headers["Authorization"] = f"Bearer {fresh_token}"
+                            gdrive_res = await client.patch(drive_url, headers=headers, json={"name": new_name})
+                    if gdrive_res.status_code == 200:
+                        logger.info(f"Renamed file {item.gdrive_file_id} on Google Drive to '{new_name}'")
+                    else:
+                        logger.warning(f"Failed to rename file on Google Drive ({gdrive_res.status_code}): {gdrive_res.text}")
             except Exception as e:
                 logger.warning(f"Error calling Google Drive API to rename file {item.gdrive_file_id}: {e}")
 
@@ -432,21 +486,31 @@ def rename_file(
     return item
 
 
-
-def delete_item_recursively(item: FileItem, db: Session):
+async def delete_item_recursively(item: FileItem, db: Session):
     if item.is_folder:
         children = db.query(FileItem).filter(FileItem.parent_id == item.id).all()
         for child in children:
-            delete_item_recursively(child, db)
+            await delete_item_recursively(child, db)
     else:
         if item.storage_user_id and item.gdrive_file_id:
             storage_user = db.query(User).filter(User.id == item.storage_user_id).first()
-            access_token = get_fresh_google_access_token(storage_user, db) if storage_user else None
+            access_token = await get_fresh_google_access_token(storage_user, db) if storage_user else None
             if access_token:
                 try:
                     drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}"
                     headers = {"Authorization": f"Bearer {access_token}"}
-                    requests.delete(drive_url, headers=headers, timeout=10.0)
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        del_res = await client.delete(drive_url, headers=headers)
+                        if del_res.status_code == 401 and storage_user:
+                            logger.warning(f"Access token expired (401) for User ID {storage_user.id} during file delete. Force refreshing...")
+                            fresh_token = await get_fresh_google_access_token(storage_user, db, force_refresh=True)
+                            if fresh_token:
+                                headers["Authorization"] = f"Bearer {fresh_token}"
+                                del_res = await client.delete(drive_url, headers=headers)
+                        if del_res.status_code in (200, 204):
+                            logger.info(f"Successfully deleted Drive file {item.gdrive_file_id}")
+                        else:
+                            logger.warning(f"Google Drive delete status {del_res.status_code} for {item.gdrive_file_id}: {del_res.text}")
                 except Exception as e:
                     logger.warning(f"Failed to delete file {item.gdrive_file_id} from Google Drive: {e}")
 
@@ -460,10 +524,11 @@ def delete_item_recursively(item: FileItem, db: Session):
                 membership.files_hosted_count = max(0, membership.files_hosted_count - 1)
 
     db.delete(item)
+    db.commit()
 
 
 @router.delete("/{file_id}")
-def delete_file(
+async def delete_file(
     file_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -473,12 +538,9 @@ def delete_file(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File item not found")
 
     check_membership(current_user.id, item.room_id, db)
+    room_id = item.room_id
 
-    item_name = item.name
-    is_folder = item.is_folder
+    await delete_item_recursively(item, db)
 
-    delete_item_recursively(item, db)
-    db.commit()
-
-    logger.info(f"Recursively deleted {'folder' if is_folder else 'file'} item ID {file_id} ('{item_name}')")
-    return {"message": f"{'Folder and all its contents' if is_folder else 'File'} deleted successfully"}
+    logger.info(f"Deleted item ID {file_id} from Room {room_id}")
+    return {"message": "Item deleted successfully", "id": file_id}

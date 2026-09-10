@@ -109,6 +109,12 @@ class UploadIntentResponse(BaseModel):
     storage_user_id: int
     storage_user_name: str
 
+class UploadIntentBatchRequest(BaseModel):
+    items: List[UploadIntentRequest]
+
+class UploadIntentBatchResponse(BaseModel):
+    intents: List[UploadIntentResponse]
+
 class UploadCompleteRequest(BaseModel):
     gdrive_file_id: str
     name: str

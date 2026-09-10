@@ -37,7 +37,7 @@ export default function StorageHero({ activeRoom, storageData, onOpenUploadModal
         <div className="storage-hero-actions">
           <button className="btn-emerald" onClick={onOpenUploadModal}>
             <UploadCloud size={18} />
-            <span>Upload File</span>
+            <span>Upload</span>
           </button>
           <button className="btn-slate" onClick={onOpenAllocateModal}>
             <HardDriveDownload size={18} />

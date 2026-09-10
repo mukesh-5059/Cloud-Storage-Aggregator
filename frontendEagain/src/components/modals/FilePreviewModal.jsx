@@ -12,21 +12,14 @@ export default function FilePreviewModal({ isOpen, onClose, file, appJwt, BACKEN
     if (onDownloadFile) {
       onDownloadFile(file);
     } else {
-      const downloadUrl = `${BACKEND_URL}/files/${file.id}/download`;
-      fetch(downloadUrl, {
-        headers: { Authorization: `Bearer ${appJwt}` }
-      })
-        .then(res => res.blob())
-        .then(blob => {
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = file.name;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        })
-        .catch(err => console.error('Download failed:', err));
+      const downloadUrl = `${BACKEND_URL}/files/${file.id}/download?token=${appJwt}`;
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = file.name;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
   };
 

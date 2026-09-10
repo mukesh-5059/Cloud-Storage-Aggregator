@@ -1,6 +1,6 @@
 import logging
 import json
-import requests
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/rooms", tags=["Rooms"])
 
 
 @router.post("", response_model=RoomResponse)
-def create_room(
+async def create_room(
     payload: RoomCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -44,7 +44,7 @@ def create_room(
     return room
 
 @router.post("/{room_id}/join")
-def join_room(
+async def join_room(
     room_id: int,
     payload: RoomJoin,
     current_user: User = Depends(get_current_user),
@@ -81,7 +81,7 @@ def join_room(
     return {"message": "Successfully joined room"}
 
 @router.get("", response_model=List[RoomResponse])
-def get_my_rooms(
+async def get_my_rooms(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -91,7 +91,7 @@ def get_my_rooms(
     return rooms
 
 @router.get("/{room_id}/users", response_model=List[UserResponse])
-def get_room_users(
+async def get_room_users(
     room_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -135,7 +135,7 @@ def get_room_users(
     return members_data
 
 @router.post("/{room_id}/contribute", response_model=ContributionResponse)
-def contribute_storage(
+async def contribute_storage(
     room_id: int,
     payload: StorageContributeRequest,
     current_user: User = Depends(get_current_user),
@@ -157,7 +157,7 @@ def contribute_storage(
 
     # Create physical folder in Google Drive if ID is not yet stored
     if not membership.gdrive_folder_id:
-        access_token = get_fresh_google_access_token(current_user, db)
+        access_token = await get_fresh_google_access_token(current_user, db)
         if not access_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -173,12 +173,12 @@ def contribute_storage(
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
             }
-            gdrive_res = requests.post(
-                "https://www.googleapis.com/drive/v3/files",
-                headers=headers,
-                data=json.dumps(folder_metadata),
-                timeout=10.0
-            )
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                gdrive_res = await client.post(
+                    "https://www.googleapis.com/drive/v3/files",
+                    headers=headers,
+                    json=folder_metadata
+                )
 
             if gdrive_res.status_code == 200:
                 folder_id = gdrive_res.json().get("id")
@@ -202,7 +202,7 @@ def contribute_storage(
     return membership
 
 @router.get("/{room_id}/dashboard")
-def get_room_dashboard(
+async def get_room_dashboard(
     room_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

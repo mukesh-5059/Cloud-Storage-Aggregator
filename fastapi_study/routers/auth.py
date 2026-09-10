@@ -1,7 +1,7 @@
 import logging
 import json
 import os
-import requests
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
@@ -40,7 +40,7 @@ if os.path.exists(CLIENT_CREDENTIALS_FILE):
         logger.warning(f"Failed to load client_with_gdrive.json: {e}")
 
 @router.post("/signup", response_model=TokenResponse)
-def signup(payload: GoogleSignUpRequest, db: Session = Depends(get_db)):
+async def signup(payload: GoogleSignUpRequest, db: Session = Depends(get_db)):
     logger.info("Processing Sign-Up request with Google authorization code...")
     token_url = "https://oauth2.googleapis.com/token"
     data = {
@@ -51,75 +51,76 @@ def signup(payload: GoogleSignUpRequest, db: Session = Depends(get_db)):
         "grant_type": "authorization_code"
     }
 
-    try:
-        token_response = requests.post(token_url, data=data, timeout=10.0)
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Google Token Exchange connection error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail=f"Connection to Google OAuth server timed out: {e}"
-        )
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            token_response = await client.post(token_url, data=data)
+        except httpx.RequestError as e:
+            logger.error(f"Google Token Exchange connection error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail=f"Connection to Google OAuth server timed out: {e}"
+            )
 
-    if token_response.status_code != 200:
-        logger.error(f"Google Code Exchange failed ({token_response.status_code}): {token_response.text}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Google Code Exchange failed: {token_response.text}"
-        )
+        if token_response.status_code != 200:
+            logger.error(f"Google Code Exchange failed ({token_response.status_code}): {token_response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Google Code Exchange failed: {token_response.text}"
+            )
 
-    tokens = token_response.json()
-    google_access_token = tokens.get("access_token")
-    google_refresh_token = tokens.get("refresh_token")
+        tokens = token_response.json()
+        google_access_token = tokens.get("access_token")
+        google_refresh_token = tokens.get("refresh_token")
 
-    userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
-    headers = {"Authorization": f"Bearer {google_access_token}"}
-    try:
-        userinfo_res = requests.get(userinfo_url, headers=headers, timeout=5.0)
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch profile from Google due to network timeout: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="Google profile request timed out"
-        )
+        userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
+        headers = {"Authorization": f"Bearer {google_access_token}"}
+        try:
+            userinfo_res = await client.get(userinfo_url, headers=headers)
+        except httpx.RequestError as e:
+            logger.error(f"Failed to fetch profile from Google due to network timeout: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Google profile request timed out"
+            )
 
-    if userinfo_res.status_code != 200:
-        logger.error(f"Failed to fetch profile from Google ({userinfo_res.status_code})")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to fetch user profile from Google"
-        )
+        if userinfo_res.status_code != 200:
+            logger.error(f"Failed to fetch profile from Google ({userinfo_res.status_code})")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to fetch user profile from Google"
+            )
 
-    userinfo = userinfo_res.json()
-    email = userinfo.get("email")
+        userinfo = userinfo_res.json()
+        email = userinfo.get("email")
 
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google account did not return a valid email"
-        )
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Google account did not return a valid email"
+            )
 
-    existing_user = db.query(User).filter(User.email == email).first()
-    if existing_user:
-        logger.warning(f"Sign-up rejected: User email {email} already exists in database")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Account already exists for this email. Please Log In instead."
-        )
+        existing_user = db.query(User).filter(User.email == email).first()
+        if existing_user:
+            logger.warning(f"Sign-up rejected: User email {email} already exists in database")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Account already exists for this email. Please Log In instead."
+            )
 
-    # Fetch Drive Storage Quota from Google Drive API
-    storage_limit = None
-    storage_usage = None
-    try:
-        quota_url = "https://www.googleapis.com/drive/v3/about?fields=storageQuota"
-        quota_res = requests.get(quota_url, headers=headers, timeout=5.0)
-        if quota_res.status_code == 200:
-            quota_data = quota_res.json().get("storageQuota", {})
-            if quota_data.get("limit"):
-                storage_limit = int(quota_data["limit"])
-            if quota_data.get("usage"):
-                storage_usage = int(quota_data["usage"])
-    except Exception as e:
-        logger.warning(f"Error requesting Drive storage quota: {e}")
+        # Fetch Drive Storage Quota from Google Drive API
+        storage_limit = None
+        storage_usage = None
+        try:
+            quota_url = "https://www.googleapis.com/drive/v3/about?fields=storageQuota"
+            quota_res = await client.get(quota_url, headers=headers)
+            if quota_res.status_code == 200:
+                quota_data = quota_res.json().get("storageQuota", {})
+                if quota_data.get("limit"):
+                    storage_limit = int(quota_data["limit"])
+                if quota_data.get("usage"):
+                    storage_usage = int(quota_data["usage"])
+        except Exception as e:
+            logger.warning(f"Error requesting Drive storage quota: {e}")
 
     display_name = payload.name.strip() if payload.name and payload.name.strip() else email.split("@")[0]
     new_user = User(
@@ -143,7 +144,7 @@ def signup(payload: GoogleSignUpRequest, db: Session = Depends(get_db)):
     )
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
+async def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
     logger.info("Processing Log-In request...")
 
     target_email = payload.email
@@ -165,7 +166,10 @@ def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
                 detail=f"Invalid Google ID Token: {e}"
             )
 
-    # Option 2: Fallback to authorization code exchange with 5s timeout
+    fresh_access_token = None
+    fresh_refresh_token = None
+
+    # Option 2: Fallback to authorization code exchange with httpx.AsyncClient
     if not target_email and payload.code:
         token_url = "https://oauth2.googleapis.com/token"
         data = {
@@ -176,18 +180,19 @@ def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
             "grant_type": "authorization_code"
         }
         try:
-            token_response = requests.post(token_url, data=data, timeout=5.0)
-            if token_response.status_code == 200:
-                tokens = token_response.json()
-                access_tok = tokens.get("access_token")
-                userinfo_res = requests.get(
-                    "https://www.googleapis.com/oauth2/v3/userinfo",
-                    headers={"Authorization": f"Bearer {access_tok}"},
-                    timeout=5.0
-                )
-                if userinfo_res.status_code == 200:
-                    target_email = userinfo_res.json().get("email")
-        except requests.exceptions.RequestException as e:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                token_response = await client.post(token_url, data=data)
+                if token_response.status_code == 200:
+                    tokens = token_response.json()
+                    fresh_access_token = tokens.get("access_token")
+                    fresh_refresh_token = tokens.get("refresh_token")
+                    userinfo_res = await client.get(
+                        "https://www.googleapis.com/oauth2/v3/userinfo",
+                        headers={"Authorization": f"Bearer {fresh_access_token}"}
+                    )
+                    if userinfo_res.status_code == 200:
+                        target_email = userinfo_res.json().get("email")
+        except httpx.RequestError as e:
             logger.warning(f"Fallback authorization code exchange failed/timed out: {e}")
 
     if not target_email:
@@ -203,6 +208,14 @@ def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Account not found. Please Sign Up first!"
         )
+
+    if fresh_access_token:
+        user.google_access_token = fresh_access_token
+    if fresh_refresh_token:
+        user.google_refresh_token = fresh_refresh_token
+    if fresh_access_token or fresh_refresh_token:
+        db.commit()
+        db.refresh(user)
 
     logger.info(f"Log-in successful for User ID {user.id} ({user.email}). Issued fresh App JWT in <5ms.")
     app_jwt = create_access_token(user_id=user.id)

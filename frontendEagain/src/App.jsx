@@ -85,37 +85,15 @@ export default function App() {
 
   const handleDownloadFile = (item) => {
     if (!item || item.is_folder) return;
-    setBlockingOverlay({
-      title: 'Preparing Download',
-      message: `Downloading "${item.name}"...`,
-      subtext: 'Fetching file contents from storage host node...'
-    });
-
-    fetch(`${BACKEND_URL}/files/${item.id}/download`, {
-      headers: { Authorization: `Bearer ${appJwt}` }
-    })
-      .then(res => {
-        if (!res.ok) throw new Error('Download failed');
-        return res.blob();
-      })
-      .then(blob => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = item.name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-        showToast(`Downloaded "${item.name}" successfully`, 3500);
-      })
-      .catch(err => {
-        console.error(err);
-        showToast(`Failed to download "${item.name}"`, 4000);
-      })
-      .finally(() => {
-        setBlockingOverlay(null);
-      });
+    const downloadUrl = `${BACKEND_URL}/files/${item.id}/download?token=${appJwt}`;
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = item.name;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    showToast(`Downloading "${item.name}"...`, 3000);
   };
 
   const handleLogout = useCallback(() => {
