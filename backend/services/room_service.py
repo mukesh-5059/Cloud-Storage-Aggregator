@@ -55,11 +55,6 @@ def get_room_members(db: Session, room_id: int, user_id: int) -> List[Dict[str, 
 
     members_data = []
     for m in room.user_memberships:
-        files_count = db.query(FileItem).filter(
-            FileItem.room_id == room_id,
-            FileItem.storage_user_id == m.user_id,
-            FileItem.is_folder == False
-        ).count()
         members_data.append({
             "id": m.user.id,
             "email": m.user.email,
@@ -67,7 +62,7 @@ def get_room_members(db: Session, room_id: int, user_id: int) -> List[Dict[str, 
             "storage_limit": m.user.storage_limit,
             "storage_usage": m.user.storage_usage,
             "allocated_bytes": m.allocated_bytes,
-            "files_count": files_count
+            "files_count": m.files_hosted_count
         })
     return members_data
 

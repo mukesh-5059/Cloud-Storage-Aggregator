@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, BigInteger, String, Boolean, ForeignKey, DateTime, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -7,7 +7,7 @@ class UserRoom(Base):
     __tablename__ = "user_rooms"
 
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    room_id = Column(Integer, ForeignKey("rooms.id"), primary_key=True)
+    room_id = Column(Integer, ForeignKey("rooms.id"), primary_key=True, index=True)
     allocated_bytes = Column(BigInteger, default=0, nullable=False)
     used_bytes = Column(BigInteger, default=0, nullable=False)
     files_hosted_count = Column(Integer, default=0, nullable=False)
@@ -48,14 +48,14 @@ class FileItem(Base):
     __tablename__ = "file_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
-    parent_id = Column(Integer, ForeignKey("file_items.id"), nullable=True)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False, index=True)
+    parent_id = Column(Integer, ForeignKey("file_items.id"), nullable=True, index=True)
     name = Column(String, nullable=False)
     is_folder = Column(Boolean, default=False, nullable=False)
     size_bytes = Column(BigInteger, default=0, nullable=False)
     mime_type = Column(String, nullable=True)
-    uploader_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    storage_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    uploader_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    storage_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     gdrive_file_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -63,5 +63,10 @@ class FileItem(Base):
     parent = relationship("FileItem", remote_side=[id], backref="children")
     uploader = relationship("User", foreign_keys=[uploader_id], back_populates="uploaded_files")
     storage_user = relationship("User", foreign_keys=[storage_user_id], back_populates="hosted_files")
+
+    __table_args__ = (
+        Index("idx_file_items_room_parent", "room_id", "parent_id"),
+    )
+
 
 
