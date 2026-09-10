@@ -1,9 +1,13 @@
 import logging
 import time
+import httpx
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+
 from database import engine, Base
 from routers import auth, rooms, users, files
+from services import gdrive_service
 
 class CustomColoredFormatter(logging.Formatter):
     GREY = "\x1b[38;20m"
@@ -39,10 +43,19 @@ logging.getLogger("uvicorn.access").disabled = True
 
 Base.metadata.create_all(bind=engine)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing shared HTTP client pool for Google Drive API...")
+    gdrive_service.http_client = httpx.AsyncClient(timeout=30.0)
+    yield
+    logger.info("Closing shared HTTP client pool...")
+    await gdrive_service.http_client.aclose()
+
 app = FastAPI(
     title="FastAPI Study Backend",
     description="Backend API with Google OAuth, Custom JWT, and Private Rooms management",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(

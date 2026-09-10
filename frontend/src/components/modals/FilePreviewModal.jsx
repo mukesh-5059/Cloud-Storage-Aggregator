@@ -13,13 +13,7 @@ export default function FilePreviewModal({ isOpen, onClose, file, appJwt, BACKEN
       onDownloadFile(file);
     } else {
       const downloadUrl = `${BACKEND_URL}/files/${file.id}/download?token=${appJwt}`;
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = file.name;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      window.location.href = downloadUrl;
     }
   };
 

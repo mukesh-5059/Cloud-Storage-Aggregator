@@ -86,13 +86,7 @@ export default function App() {
   const handleDownloadFile = (item) => {
     if (!item || item.is_folder) return;
     const downloadUrl = `${BACKEND_URL}/files/${item.id}/download?token=${appJwt}`;
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = item.name;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    window.location.href = downloadUrl;
     showToast(`Downloading "${item.name}"...`, 3000);
   };
 
