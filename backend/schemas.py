@@ -8,8 +8,8 @@ class GoogleSignUpRequest(BaseModel):
 
 class GoogleLoginRequest(BaseModel):
     code: Optional[str] = None
-    email: Optional[str] = None
     id_token: Optional[str] = None
+    access_token: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int

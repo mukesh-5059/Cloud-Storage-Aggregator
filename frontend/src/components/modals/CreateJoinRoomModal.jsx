@@ -121,11 +121,13 @@ export default function CreateJoinRoomModal({ isOpen, onClose, onCreateRoom, onJ
             <div className="form-group">
               <label className="form-label">Room ID</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="form-input font-mono"
-                placeholder="Enter numerical Room ID (e.g. 1)"
+                placeholder="Enter 6-digit Room ID (e.g. 584920)"
                 value={joinId}
-                onChange={(e) => setJoinId(e.target.value)}
+                onChange={(e) => setJoinId(e.target.value.replace(/\D/g, ''))}
                 disabled={loading}
                 required
               />

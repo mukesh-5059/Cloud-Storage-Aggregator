@@ -134,6 +134,16 @@ async def upload_file_multipart(access_token: str, metadata: dict, file_name: st
         return res.json().get("id")
     return None
 
+async def copy_file(target_access_token: str, source_file_id: str, metadata: dict) -> Optional[str]:
+    """Clones a Google Drive file server-side to a new owner/folder using Google Drive API."""
+    url = f"https://www.googleapis.com/drive/v3/files/{source_file_id}/copy"
+    headers = {"Authorization": f"Bearer {target_access_token}", "Content-Type": "application/json"}
+    client = get_client()
+    res = await client.post(url, headers=headers, json=metadata)
+    if res.status_code == 200:
+        return res.json().get("id")
+    return None
+
 async def delete_file(access_token: str, gdrive_file_id: str) -> bool:
     """Deletes a file from Google Drive."""
     url = f"https://www.googleapis.com/drive/v3/files/{gdrive_file_id}"

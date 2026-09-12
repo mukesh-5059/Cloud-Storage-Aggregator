@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -115,6 +116,7 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
 
     total_migrated = 0
     total_cascaded = 0
+    semaphore = asyncio.Semaphore(4)
 
     for membership in user_memberships:
         room_id = membership.room_id
@@ -130,6 +132,8 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
             UserRoom.user_id != current_user.id
         ).all()
 
+        migration_tasks = []
+
         for file_item in hosted_files:
             file_size = file_item.size_bytes
             other_memberships.sort(key=lambda m: (m.allocated_bytes - m.used_bytes), reverse=True)
@@ -141,36 +145,54 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
                     break
 
             if target_host:
-                target_user = db.query(User).filter(User.id == target_host.user_id).first()
-                target_access_token = await gdrive_service.get_fresh_google_access_token(target_user, db) if target_user else None
-
-                new_gdrive_id = None
-                if user_access_token and target_access_token and target_user and file_item.gdrive_file_id:
-                    try:
-                        content = await gdrive_service.download_file_content(user_access_token, file_item.gdrive_file_id)
-                        if content:
-                            metadata = {
-                                "name": file_item.name,
-                                "mimeType": file_item.mime_type or "application/octet-stream"
-                            }
-                            if target_host.gdrive_folder_id:
-                                metadata["parents"] = [target_host.gdrive_folder_id]
-
-                            new_gdrive_id = await gdrive_service.upload_file_multipart(
-                                target_access_token, metadata, file_item.name, content, file_item.mime_type or "application/octet-stream"
-                            )
-                            if new_gdrive_id:
-                                await gdrive_service.set_file_permission(target_access_token, new_gdrive_id)
-                                await gdrive_service.delete_file(user_access_token, file_item.gdrive_file_id)
-                                logger.info(f"Physically migrated file '{file_item.name}' from User {current_user.id} to User {target_user.id}")
-                    except Exception as e:
-                        logger.error(f"Failed physical Drive migration for file {file_item.id}: {e}")
-
                 target_host.used_bytes += file_size
                 target_host.files_hosted_count += 1
-                file_item.storage_user_id = target_host.user_id
-                if new_gdrive_id:
-                    file_item.gdrive_file_id = new_gdrive_id
+
+                async def process_single_migration(item: FileItem, host: UserRoom):
+                    async with semaphore:
+                        target_user = db.query(User).filter(User.id == host.user_id).first()
+                        target_access_token = await gdrive_service.get_fresh_google_access_token(target_user, db) if target_user else None
+
+                        new_gdrive_id = None
+                        if user_access_token and target_access_token and target_user and item.gdrive_file_id:
+                            try:
+                                metadata = {
+                                    "name": item.name,
+                                    "mimeType": item.mime_type or "application/octet-stream"
+                                }
+                                if host.gdrive_folder_id:
+                                    metadata["parents"] = [host.gdrive_folder_id]
+
+                                # 1. Fast Google Drive cloud server-side copy (~300ms)
+                                new_gdrive_id = await gdrive_service.copy_file(
+                                    target_access_token, item.gdrive_file_id, metadata
+                                )
+
+                                # 2. Fallback to byte download/upload if server-side copy fails
+                                if not new_gdrive_id:
+                                    content = await gdrive_service.download_file_content(user_access_token, item.gdrive_file_id)
+                                    if content:
+                                        new_gdrive_id = await gdrive_service.upload_file_multipart(
+                                            target_access_token, metadata, item.name, content, item.mime_type or "application/octet-stream"
+                                        )
+
+                                if new_gdrive_id:
+                                    # 3. Fire-and-forget background permission setting (non-blocking)
+                                    asyncio.create_task(gdrive_service.set_file_permission(target_access_token, new_gdrive_id))
+                                    # 4. Delete old file from deleting user's Drive
+                                    await gdrive_service.delete_file(user_access_token, item.gdrive_file_id)
+                                    logger.info(f"Physically migrated file '{item.name}' from User {current_user.id} to User {target_user.id}")
+                            except Exception as e:
+                                logger.error(f"Failed physical Drive migration for file {item.id}: {e}")
+
+                        # 5. Immediate per-file DB update & commit for real-time room storage consistency
+                        item.storage_user_id = host.user_id
+                        if new_gdrive_id:
+                            item.gdrive_file_id = new_gdrive_id
+
+                        db.commit()
+
+                migration_tasks.append(process_single_migration(file_item, target_host))
                 total_migrated += 1
             else:
                 if user_access_token and file_item.gdrive_file_id:
@@ -179,7 +201,11 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
                     except Exception as e:
                         logger.warning(f"Could not delete cascaded file from Drive: {e}")
                 db.delete(file_item)
+                db.commit()
                 total_cascaded += 1
+
+        if migration_tasks:
+            await asyncio.gather(*migration_tasks)
 
         if user_access_token and membership.gdrive_folder_id:
             try:
@@ -187,10 +213,11 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
             except Exception as e:
                 logger.warning(f"Could not delete contribution folder {membership.gdrive_folder_id}: {e}")
 
-    token_to_revoke = current_user.google_access_token or current_user.google_refresh_token
+    token_to_revoke = current_user.google_refresh_token or current_user.google_access_token
     if token_to_revoke:
         try:
             await gdrive_service.revoke_oauth_token(token_to_revoke)
+            logger.info(f"Successfully revoked Google OAuth token for deleted User {current_user.id}")
         except Exception as e:
             logger.warning(f"Could not revoke Google token: {e}")
 

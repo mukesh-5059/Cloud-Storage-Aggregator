@@ -83,11 +83,34 @@ export default function App() {
     }
   }, []);
 
-  const handleDownloadFile = (item) => {
+  const handleDownloadFile = async (item) => {
     if (!item || item.is_folder) return;
-    const downloadUrl = `${BACKEND_URL}/files/${item.id}/download?token=${appJwt}`;
-    window.location.href = downloadUrl;
-    showToast(`Downloading "${item.name}"...`, 3000);
+    try {
+      showToast(`Preparing download for "${item.name}"...`, 3000);
+      const res = await fetch(`${BACKEND_URL}/files/${item.id}/download`, {
+        headers: { Authorization: `Bearer ${appJwt}` }
+      });
+      if (res.ok) {
+        if (res.redirected) {
+          window.open(res.url, '_blank');
+        } else {
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = item.name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || `Failed to download "${item.name}"`, 4000);
+      }
+    } catch (err) {
+      showToast(`Error downloading "${item.name}"`, 4000);
+    }
   };
 
   const handleLogout = useCallback(() => {
@@ -299,132 +322,60 @@ export default function App() {
       return;
     }
 
-    if (mode === 'signup') {
-      if (!window.google.accounts.oauth2) {
-        setError('Google OAuth2 client failed to initialize.');
-        setIsAuthenticating(false);
-        return;
-      }
-      const codeClient = window.google.accounts.oauth2.initCodeClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file',
-        ux_mode: 'popup',
-        callback: async (response) => {
-          if (response.error) {
-            setError(`Google Auth Error: ${response.error_description || response.error}`);
-            setIsAuthenticating(false);
-            return;
-          }
-
-          if (response.code) {
-            try {
-              const res = await fetch(`${BACKEND_URL}/auth/signup`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: response.code, name: userNameInput })
-              });
-
-              const data = await res.json();
-              if (res.ok) {
-                localStorage.setItem('app_jwt', data.access_token);
-                setAppJwt(data.access_token);
-                setCurrentUser(data.user);
-                showToast(`Welcome ${data.user.name}!`);
-              } else {
-                setError(data.detail || 'Sign up failed');
-              }
-            } catch (err) {
-              setError('Server connection error during sign up');
-            } finally {
-              setIsAuthenticating(false);
-            }
-          } else {
-            setIsAuthenticating(false);
-          }
-        }
-      });
-      codeClient.requestCode();
-    } else {
-      // mode === 'login' -> Approach A: Google ID Token (Sign In with Google, NO Drive Consent Screen)
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: async (response) => {
-          if (response.credential) {
-            try {
-              const res = await fetch(`${BACKEND_URL}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id_token: response.credential })
-              });
-
-              const data = await res.json();
-              if (res.ok) {
-                localStorage.setItem('app_jwt', data.access_token);
-                setAppJwt(data.access_token);
-                setCurrentUser(data.user);
-                showToast(`Welcome back, ${data.user.name}!`);
-              } else {
-                setError(data.detail || 'Login failed');
-              }
-            } catch (err) {
-              setError('Server connection error during login');
-            } finally {
-              setIsAuthenticating(false);
-            }
-          } else {
-            setIsAuthenticating(false);
-          }
-        }
-      });
-
-      // Show Google One Tap or Account Selector Modal
-      window.google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          // Fallback if One-Tap prompt is suppressed or closed: use lightweight tokenClient with email scope only (no consent screen)
-          if (window.google.accounts.oauth2) {
-            const tokenClient = window.google.accounts.oauth2.initTokenClient({
-              client_id: GOOGLE_CLIENT_ID,
-              scope: 'email',
-              callback: async (resp) => {
-                if (resp.access_token) {
-                  try {
-                    const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                      headers: { Authorization: `Bearer ${resp.access_token}` }
-                    });
-                    if (userinfoRes.ok) {
-                      const uinfo = await userinfoRes.json();
-                      const res = await fetch(`${BACKEND_URL}/auth/login`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: uinfo.email })
-                      });
-                      const data = await res.json();
-                      if (res.ok) {
-                        localStorage.setItem('app_jwt', data.access_token);
-                        setAppJwt(data.access_token);
-                        setCurrentUser(data.user);
-                        showToast(`Welcome back, ${data.user.name}!`);
-                      } else {
-                        setError(data.detail || 'Login failed');
-                      }
-                    }
-                  } catch (err) {
-                    setError('Login connection error');
-                  } finally {
-                    setIsAuthenticating(false);
-                  }
-                } else {
-                  setIsAuthenticating(false);
-                }
-              }
-            });
-            tokenClient.requestAccessToken();
-          } else {
-            setIsAuthenticating(false);
-          }
-        }
-      });
+    if (!window.google.accounts.oauth2) {
+      setError('Google OAuth2 client failed to initialize.');
+      setIsAuthenticating(false);
+      return;
     }
+
+    const authScope = mode === 'signup'
+      ? 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file'
+      : 'https://www.googleapis.com/auth/userinfo.email';
+
+    const codeClient = window.google.accounts.oauth2.initCodeClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: authScope,
+      ux_mode: 'popup',
+      callback: async (response) => {
+        if (response.error) {
+          setError(`Google Auth Error: ${response.error_description || response.error}`);
+          setIsAuthenticating(false);
+          return;
+        }
+
+        if (response.code) {
+          try {
+            const endpoint = mode === 'signup' ? '/auth/signup' : '/auth/login';
+            const bodyPayload = mode === 'signup'
+              ? { code: response.code, name: userNameInput }
+              : { code: response.code };
+
+            const res = await fetch(`${BACKEND_URL}${endpoint}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(bodyPayload)
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+              localStorage.setItem('app_jwt', data.access_token);
+              setAppJwt(data.access_token);
+              setCurrentUser(data.user);
+              showToast(mode === 'signup' ? `Welcome ${data.user.name}!` : `Welcome back, ${data.user.name}!`);
+            } else {
+              setError(data.detail || (mode === 'signup' ? 'Sign up failed' : 'Login failed'));
+            }
+          } catch (err) {
+            setError(`Server connection error during ${mode === 'signup' ? 'sign up' : 'login'}`);
+          } finally {
+            setIsAuthenticating(false);
+          }
+        } else {
+          setIsAuthenticating(false);
+        }
+      }
+    });
+    codeClient.requestCode();
   };
 
   // Handlers for Room Operations

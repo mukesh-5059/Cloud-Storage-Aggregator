@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, BigInteger, String, Boolean, ForeignKey,
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
+from crypto_utils import EncryptedString
 
 class UserRoom(Base):
     __tablename__ = "user_rooms"
@@ -22,8 +23,8 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
-    google_access_token = Column(String, nullable=True)
-    google_refresh_token = Column(String, nullable=True)
+    google_access_token = Column(EncryptedString, nullable=True)
+    google_refresh_token = Column(EncryptedString, nullable=True)
     storage_limit = Column(BigInteger, nullable=True)
     storage_usage = Column(BigInteger, nullable=True)
 

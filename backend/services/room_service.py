@@ -1,4 +1,6 @@
 import logging
+import bcrypt
+import secrets
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -8,8 +10,30 @@ from services import gdrive_service
 
 logger = logging.getLogger("room_service")
 
+def generate_random_room_id(db: Session) -> int:
+    for _ in range(100):
+        candidate_id = secrets.randbelow(900000) + 100000
+        existing = db.query(Room).filter(Room.id == candidate_id).first()
+        if not existing:
+            return candidate_id
+    raise RuntimeError("Failed to generate unique random room ID")
+
+def hash_room_password(password: str) -> str:
+    pwd_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
+
+def verify_room_password(plain_password: str, hashed_password: str) -> bool:
+    try:
+        pwd_bytes = plain_password.encode('utf-8')[:72]
+        return bcrypt.checkpw(pwd_bytes, hashed_password.encode('utf-8'))
+    except Exception:
+        return plain_password == hashed_password
+
 def create_room(db: Session, name: str, password: str, owner_id: int) -> Room:
-    room = Room(name=name, password=password, owner_id=owner_id)
+    hashed_pwd = hash_room_password(password)
+    room_id = generate_random_room_id(db)
+    room = Room(id=room_id, name=name, password=hashed_pwd, owner_id=owner_id)
     db.add(room)
     db.commit()
     db.refresh(room)
@@ -24,7 +48,7 @@ def join_room(db: Session, room_id: int, user_id: int, password: str) -> Dict[st
     if not room:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
 
-    if room.password != password:
+    if not verify_room_password(password, room.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid room password")
 
     existing_membership = db.query(UserRoom).filter(

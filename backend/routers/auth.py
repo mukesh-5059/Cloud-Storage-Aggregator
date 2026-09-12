@@ -119,9 +119,14 @@ async def signup(payload: GoogleSignUpRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
     logger.info("Processing Log-In request...")
-    target_email = payload.email
+    target_email = None
+    fresh_access_token = None
+    fresh_refresh_token = None
 
-    if not target_email and payload.id_token:
+    client = gdrive_service.get_client()
+
+    # 1. Option 1: ID Token Verification
+    if payload.id_token:
         try:
             id_info = google_id_token.verify_oauth2_token(
                 payload.id_token,
@@ -137,10 +142,8 @@ async def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
                 detail=f"Invalid Google ID Token: {e}"
             )
 
-    fresh_access_token = None
-    fresh_refresh_token = None
-
-    if not target_email and payload.code:
+    # 2. Option 2: Authorization Code Exchange
+    elif payload.code:
         token_url = "https://oauth2.googleapis.com/token"
         data = {
             "code": payload.code,
@@ -150,7 +153,6 @@ async def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
             "grant_type": "authorization_code"
         }
         try:
-            client = gdrive_service.get_client()
             token_response = await client.post(token_url, data=data)
             if token_response.status_code == 200:
                 tokens = token_response.json()
@@ -162,13 +164,33 @@ async def login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
                 )
                 if userinfo_res.status_code == 200:
                     target_email = userinfo_res.json().get("email")
+                else:
+                    logger.error(f"Google userinfo request failed during login code exchange ({userinfo_res.status_code}): {userinfo_res.text}")
+            else:
+                logger.error(f"Google token exchange failed during login code exchange ({token_response.status_code}): {token_response.text}")
         except httpx.RequestError as e:
-            logger.warning(f"Fallback authorization code exchange failed/timed out: {e}")
+            logger.warning(f"Authorization code exchange failed/timed out: {e}")
+
+    # 3. Option 3: Direct Access Token Verification via Google UserInfo API
+    elif payload.access_token:
+        try:
+            fresh_access_token = payload.access_token
+            userinfo_res = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {payload.access_token}"}
+            )
+            if userinfo_res.status_code == 200:
+                target_email = userinfo_res.json().get("email")
+                logger.info(f"Verified Google access token server-side for email: {target_email}")
+            else:
+                logger.error(f"Google userinfo validation failed with status {userinfo_res.status_code}")
+        except httpx.RequestError as e:
+            logger.warning(f"Google userinfo validation request timed out: {e}")
 
     if not target_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google email, valid ID token, or authorization code is required for Log-In"
+            detail="Valid Google ID token, authorization code, or access token is required for Log-In"
         )
 
     user = db.query(User).filter(User.email == target_email).first()
