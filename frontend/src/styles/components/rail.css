@@ -1,0 +1,117 @@
+/* Left Navigation Rail (64px) Component Styles */
+.nav-rail {
+  width: var(--rail-width);
+  height: 100vh;
+  background-color: var(--bg-rail);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  z-index: 20;
+}
+
+.rail-room-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.rail-brand-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-medium);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--emerald-primary);
+  margin-bottom: 8px;
+}
+
+.rail-item {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  position: relative;
+  transition: all var(--transition-fast);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.rail-item:hover {
+  background-color: var(--bg-elevated);
+  border-color: var(--border-medium);
+  color: var(--text-main);
+}
+
+.rail-item.active {
+  background-color: var(--emerald-bg-tint);
+  border-color: var(--emerald-primary);
+  color: var(--emerald-primary);
+}
+
+.rail-item.active::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  background-color: var(--emerald-primary);
+  border-radius: 0 4px 4px 0;
+}
+
+.rail-action-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.rail-action-btn:hover {
+  border-color: var(--emerald-primary);
+  color: var(--emerald-primary);
+  background-color: var(--emerald-bg-tint);
+}
+
+.rail-profile-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-medium);
+  color: var(--emerald-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.rail-profile-btn:hover {
+  border-color: var(--emerald-primary);
+  box-shadow: 0 0 12px var(--emerald-glow);
+}

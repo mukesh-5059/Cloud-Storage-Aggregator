@@ -1,0 +1,308 @@
+/* Responsive Design Breakpoints & Touch Target Adaptations */
+
+.mobile-members-toggle {
+  display: none;
+}
+
+.mobile-sidebar-close {
+  display: none;
+}
+
+.member-sidebar-backdrop {
+  display: none;
+}
+
+/* Tablet Breakpoint (768px - 1023px) */
+@media (max-width: 1023px) {
+  :root {
+    --sidebar-width: 220px;
+  }
+
+  .storage-hero {
+    padding: 16px 20px;
+  }
+
+  .search-input {
+    width: 180px;
+  }
+
+  .search-input:focus {
+    width: 220px;
+  }
+}
+
+/* Mobile Breakpoint (< 768px) */
+@media (max-width: 767px) {
+  .app-shell {
+    position: relative;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* Nav Rail becomes sticky bottom bar on mobile (< 640px) or compact left bar */
+  .nav-rail {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+    height: 60px;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-right: none;
+    border-top: 1px solid var(--border-medium);
+    background-color: var(--bg-rail);
+    z-index: 90;
+  }
+
+  .rail-brand-logo {
+    display: none;
+  }
+
+  .rail-room-list {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+    overflow-x: auto;
+    padding: 4px 0;
+  }
+
+  .rail-item {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+  }
+
+  .rail-item.active::before {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: -4px;
+    width: auto;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+  }
+
+  .rail-action-btn, .rail-profile-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 10px;
+  }
+
+  .main-workspace {
+    height: calc(100vh - 60px);
+    height: calc(100dvh - 60px);
+    margin-bottom: 60px;
+  }
+
+  .mobile-members-toggle {
+    display: inline-flex;
+  }
+
+  .mobile-sidebar-close {
+    display: inline-flex;
+  }
+
+  /* Member Sidebar becomes a slide-out drawer on mobile */
+  .member-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 85vw;
+    height: 100vh;
+    z-index: 150;
+    box-shadow: -12px 0 36px rgba(0, 0, 0, 0.75);
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+  }
+
+  .member-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .member-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: var(--bg-overlay);
+    backdrop-filter: blur(4px);
+    z-index: 140;
+    animation: fadeIn 0.18s ease;
+  }
+
+  /* Storage Hero Adaptation */
+  .storage-hero {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .storage-hero-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .storage-hero-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .btn-emerald, .btn-slate {
+    flex: 1;
+    min-height: 42px;
+    justify-content: center;
+    font-size: 0.82rem;
+    padding: 8px 12px;
+  }
+
+  .btn-text-responsive {
+    display: inline;
+  }
+
+  /* Explorer Toolbar Adaptation */
+  .explorer-toolbar {
+    padding: 10px 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .breadcrumbs {
+    overflow-x: auto;
+    white-space: nowrap;
+    width: 100%;
+    padding-bottom: 2px;
+  }
+
+  .toolbar-controls {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .search-input-wrapper {
+    flex: 1;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .search-input:focus {
+    width: 100%;
+  }
+
+  .search-shortcut-badge {
+    display: none;
+  }
+
+  /* Selection Action Bar */
+  .selection-action-bar {
+    padding: 0 16px;
+    overflow-x: auto;
+    height: auto;
+    min-height: 48px;
+    padding: 8px 16px;
+  }
+
+  .selection-actions {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+    width: 100%;
+  }
+
+  .action-chip {
+    min-height: 38px;
+    padding: 6px 12px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* File Table Column Hiding for Mobile */
+  .file-table th:nth-child(3),
+  .file-table td:nth-child(3),
+  .file-table th:nth-child(5),
+  .file-table td:nth-child(5) {
+    display: none;
+  }
+
+  .file-table th:nth-child(1),
+  .file-table td:nth-child(1) {
+    width: 60%;
+  }
+
+  /* Modal Responsive Scaling */
+  .modal-content {
+    width: 92vw;
+    max-width: 440px;
+    padding: 20px 16px;
+    margin: auto;
+    max-height: 88vh;
+    overflow-y: auto;
+    border-radius: 14px;
+  }
+
+  .modal-tab {
+    min-height: 42px;
+  }
+
+  .close-btn {
+    min-width: 40px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .toast-banner {
+    bottom: 76px;
+    left: 16px;
+    right: 16px;
+    justify-content: center;
+  }
+}
+
+/* Extra Small Screens (< 480px) */
+@media (max-width: 479px) {
+  .room-title {
+    font-size: 1.1rem;
+  }
+
+  .storage-used-val {
+    font-size: 1.2rem;
+  }
+
+  .btn-text-responsive {
+    display: none;
+  }
+
+  .file-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+}
+
+/* Touch Input Coarse Pointer Targets */
+@media (pointer: coarse) {
+  .rail-item,
+  .rail-action-btn,
+  .rail-profile-btn,
+  .btn-emerald,
+  .btn-slate,
+  .action-chip,
+  .breadcrumb-item {
+    min-height: 44px;
+  }
+}

@@ -1,0 +1,50 @@
+/* CSS Design Tokens & Theme Variables */
+:root {
+  /* Canvas & Panel Background Colors */
+  --bg-app: #0C1014;
+  --bg-rail: #080B0E;
+  --bg-panel: #12171C;
+  --bg-surface: #161C22;
+  --bg-elevated: #1A2026;
+  --bg-hover: #202730;
+  --bg-active: #26303C;
+  --bg-overlay: rgba(6, 9, 12, 0.8);
+  --bg-preview-overlay: rgba(4, 6, 8, 0.9);
+
+  /* Hairline Border Colors */
+  --border-subtle: #1E252D;
+  --border-medium: #242D38;
+  --border-strong: #2E3946;
+  --border-emerald: rgba(62, 207, 142, 0.35);
+
+  /* Primary Brand Emerald Colors */
+  --emerald-primary: #3ECF8E;
+  --emerald-hover: #4EFA9E;
+  --emerald-dark: #10B981;
+  --emerald-glow: rgba(62, 207, 142, 0.2);
+  --emerald-bg-tint: rgba(62, 207, 142, 0.12);
+
+  /* Status Colors */
+  --amber-status: #F59E0B;
+  --amber-bg-tint: rgba(245, 158, 11, 0.15);
+  --red-status: #EF4444;
+  --red-bg-tint: rgba(239, 68, 68, 0.15);
+  --blue-status: #3B82F6;
+  --blue-bg-tint: rgba(59, 130, 246, 0.15);
+
+  /* Typography Colors */
+  --text-main: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-dim: #7F8EA3;
+  --text-on-emerald: #080B0E;
+
+  /* Component Dimensions */
+  --rail-width: 64px;
+  --sidebar-width: 260px;
+
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}

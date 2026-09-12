@@ -1,122 +1,59 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw } from 'lucide-react';
-import NavigationRail from './components/NavigationRail';
-import StorageHero from './components/StorageHero';
-import FileExplorer from './components/FileExplorer';
-import MemberSidebar from './components/MemberSidebar';
+import React, { useEffect } from 'react';
 import AuthScreen from './components/AuthScreen';
+import WorkspaceLayout from './components/layout/WorkspaceLayout';
+import AppModals from './components/modals/AppModals';
 
-// Modal System Components
-import CreateJoinRoomModal from './components/modals/CreateJoinRoomModal';
-import AllocateStorageModal from './components/modals/AllocateStorageModal';
-import MoveFileModal from './components/modals/MoveFileModal';
-import FilePreviewModal from './components/modals/FilePreviewModal';
-import FileInfoDrawer from './components/modals/FileInfoDrawer';
-import UserProfileModal from './components/modals/UserProfileModal';
-import NewFolderModal from './components/modals/NewFolderModal';
-import UploadFileModal from './components/modals/UploadFileModal';
-import DeleteAccountModal from './components/modals/DeleteAccountModal';
-import RenameItemModal from './components/modals/RenameItemModal';
-import ConfirmDeleteModal from './components/modals/ConfirmDeleteModal';
-import { useModalState } from './hooks/useModalState';
 import { useToast } from './hooks/useToast';
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || `http://${window.location.hostname}:8000`;
-const GOOGLE_CLIENT_ID = '338846147570-nqc50noev8fn4ma36hrpgaltq7jr43k4.apps.googleusercontent.com';
+import { useModalState } from './hooks/useModalState';
+import { useAuth } from './hooks/useAuth';
+import { useRoomData } from './hooks/useRoomData';
+import { useFileSystem } from './hooks/useFileSystem';
 
 export default function App() {
-  const [appJwt, setAppJwt] = useState(() => localStorage.getItem('app_jwt') || null);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [userNameInput, setUserNameInput] = useState('');
-  const [error, setError] = useState(null);
   const { toastMessage, showToast, clearToast } = useToast();
+  const modalState = useModalState();
+  const { resetAllModals, setIsCreateJoinModalOpen } = modalState;
+
   const {
-    isCreateJoinModalOpen, setIsCreateJoinModalOpen,
-    isAllocateModalOpen, setIsAllocateModalOpen,
-    isProfileModalOpen, setIsProfileModalOpen,
-    isDeleteAccountModalOpen, setIsDeleteAccountModalOpen,
-    isUploadModalOpen, setIsUploadModalOpen,
-    isNewFolderModalOpen, setIsNewFolderModalOpen,
-    isMoveModalOpen, setIsMoveModalOpen,
-    isRenameModalOpen, setIsRenameModalOpen,
-    isPreviewModalOpen, setIsPreviewModalOpen,
-    isInfoDrawerOpen, setIsInfoDrawerOpen,
-    isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen,
-    isMobileMembersOpen, setIsMobileMembersOpen,
-    fileToMove, setFileToMove,
-    fileToRename, setFileToRename,
-    fileToPreview, setFileToPreview,
-    fileForInfo, setFileForInfo,
-    fileToDelete, setFileToDelete,
-    resetAllModals
-  } = useModalState();
+    appJwt,
+    currentUser,
+    userNameInput,
+    setUserNameInput,
+    error,
+    setError,
+    isAuthenticating,
+    handleGoogleAuth,
+    handleLogout
+  } = useAuth(showToast, clearToast, resetAllModals);
 
-  // Rooms & Dashboard State
-  const [myRooms, setMyRooms] = useState([]);
-  const [activeRoomId, setActiveRoomId] = useState(null);
-  const [activeRoom, setActiveRoom] = useState(null);
-  const [storageData, setStorageData] = useState({ total_allocated_bytes: 0, total_used_bytes: 0 });
-  const [roomMembers, setRoomMembers] = useState([]);
+  const {
+    myRooms,
+    activeRoomId,
+    setActiveRoomId,
+    activeRoom,
+    storageData,
+    roomMembers,
+    fetchRoomDashboard,
+    handleCreateRoom,
+    handleJoinRoom,
+    handleAllocateStorage
+  } = useRoomData(appJwt, showToast, handleLogout, setError, setIsCreateJoinModalOpen);
 
-  // Directory & Filesystem State
-  const [currentFolderId, setCurrentFolderId] = useState(null); // null = root
-  const [breadcrumbs, setBreadcrumbs] = useState([]);
-  const [fileItems, setFileItems] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Global Screen-Wide Blocking Overlay State
-  const [blockingOverlay, setBlockingOverlay] = useState(null); // { title?, message, subtext? }
-
-  const handleDownloadFile = async (item) => {
-    if (!item || item.is_folder) return;
-    try {
-      showToast(`Preparing download for "${item.name}"...`, 3000);
-      const res = await fetch(`${BACKEND_URL}/files/${item.id}/download`, {
-        headers: { Authorization: `Bearer ${appJwt}` }
-      });
-      if (res.ok) {
-        if (res.redirected) {
-          window.open(res.url, '_blank');
-        } else {
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = item.name;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          window.URL.revokeObjectURL(url);
-        }
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.detail || `Failed to download "${item.name}"`, 4000);
-      }
-    } catch (err) {
-      showToast(`Error downloading "${item.name}"`, 4000);
-    }
-  };
-
-  const handleLogout = useCallback(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-    setAppJwt(null);
-    setCurrentUser(null);
-    setMyRooms([]);
-    setActiveRoomId(null);
-    setActiveRoom(null);
-    setStorageData({ total_allocated_bytes: 0, total_used_bytes: 0 });
-    setRoomMembers([]);
-    setCurrentFolderId(null);
-    setBreadcrumbs([]);
-    setFileItems([]);
-    setSearchQuery('');
-    setUserNameInput('');
-    setError(null);
-    setBlockingOverlay(null);
-    clearToast();
-    resetAllModals();
-  }, [clearToast, resetAllModals]);
+  const {
+    currentFolderId,
+    breadcrumbs,
+    fileItems,
+    searchQuery,
+    setSearchQuery,
+    loadingFiles,
+    blockingOverlay,
+    fetchDirectoryFiles,
+    handleDownloadFile,
+    handleNavigateFolder,
+    handleNavigateBreadcrumb,
+    handleCreateFolder,
+    handleDeleteFile
+  } = useFileSystem(appJwt, activeRoomId, activeRoom, showToast, fetchRoomDashboard);
 
   // Close modals on Escape key
   useEffect(() => {
@@ -128,360 +65,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [resetAllModals]);
-
-  // Fetch Current User Profile
-  const fetchMyProfile = useCallback(async () => {
-    if (!appJwt) return;
-    try {
-      const res = await fetch(`${BACKEND_URL}/users/me`, {
-        headers: { Authorization: `Bearer ${appJwt}` }
-      });
-      if (res.ok) {
-        const user = await res.json();
-        setCurrentUser(user);
-      } else {
-        handleLogout();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }, [appJwt, handleLogout]);
-
-  // Fetch Joined Rooms
-  const fetchMyRooms = useCallback(async () => {
-    if (!appJwt) return;
-    try {
-      const res = await fetch(`${BACKEND_URL}/rooms`, {
-        headers: { Authorization: `Bearer ${appJwt}` }
-      });
-      if (res.ok) {
-        const rooms = await res.json();
-        setMyRooms(rooms);
-        if (rooms.length > 0) {
-          if (!activeRoomId || !rooms.some(r => r.id === activeRoomId)) {
-            setActiveRoomId(rooms[0].id);
-          }
-        } else {
-          setActiveRoomId(null);
-          setActiveRoom(null);
-          setStorageData({ total_allocated_bytes: 0, total_used_bytes: 0 });
-          setRoomMembers([]);
-          setFileItems([]);
-          setBreadcrumbs([]);
-          setCurrentFolderId(null);
-        }
-      } else if (res.status === 401) {
-        handleLogout();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }, [appJwt, activeRoomId, handleLogout]);
-
-  // Fetch Consolidated Room Dashboard
-  const fetchRoomDashboard = useCallback(async (roomId) => {
-    if (!appJwt || !roomId) return;
-    try {
-      const res = await fetch(`${BACKEND_URL}/rooms/${roomId}/dashboard`, {
-        headers: { Authorization: `Bearer ${appJwt}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setActiveRoom(data.room);
-        setStorageData(data.storage);
-        setRoomMembers(data.members);
-        // Reset breadcrumbs to root of active room
-        setBreadcrumbs([{ id: null, name: data.room.name }]);
-        setCurrentFolderId(null);
-        setFileItems(data.root_files || []);
-      }
-    } catch (err) {
-      console.error('Failed to load room dashboard:', err);
-    }
-  }, [appJwt]);
-
-  const [loadingFiles, setLoadingFiles] = useState(false);
-
-  // Fetch Files inside Current Folder
-  const fetchDirectoryFiles = useCallback(async () => {
-    if (!appJwt || !activeRoomId) return;
-
-    setLoadingFiles(true);
-    if (searchQuery.trim().length > 0) {
-      try {
-        const res = await fetch(`${BACKEND_URL}/files/room/${activeRoomId}/search?q=${encodeURIComponent(searchQuery.trim())}`, {
-          headers: { Authorization: `Bearer ${appJwt}` }
-        });
-        if (res.ok) {
-          const results = await res.json();
-          setFileItems(results);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingFiles(false);
-      }
-      return;
-    }
-
-    try {
-      const parentQuery = currentFolderId ? `?parent_id=${currentFolderId}` : '';
-      const res = await fetch(`${BACKEND_URL}/files/room/${activeRoomId}${parentQuery}`, {
-        headers: { Authorization: `Bearer ${appJwt}` }
-      });
-      if (res.ok) {
-        const items = await res.json();
-        setFileItems(items);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingFiles(false);
-    }
-  }, [appJwt, activeRoomId, currentFolderId, searchQuery]);
-
-  // Initial Load Trigger
-  useEffect(() => {
-    if (appJwt) {
-      fetchMyProfile();
-      fetchMyRooms();
-    }
-  }, [appJwt, fetchMyProfile, fetchMyRooms]);
-
-  // Load Dashboard on Room Switch
-  useEffect(() => {
-    if (activeRoomId) {
-      fetchRoomDashboard(activeRoomId);
-    }
-  }, [activeRoomId, fetchRoomDashboard]);
-
-  // Refetch Files when Folder or Search Query Changes
-  useEffect(() => {
-    if (activeRoomId) {
-      fetchDirectoryFiles();
-    }
-  }, [currentFolderId, searchQuery, activeRoomId, fetchDirectoryFiles]);
-
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-
-  // Handle Google OAuth Sign In / Sign Up Code Exchange
-  const handleGoogleAuth = (mode) => {
-    setError(null);
-    setIsAuthenticating(true);
-
-    if (!window.google || !window.google.accounts) {
-      setTimeout(() => {
-        if (window.google && window.google.accounts) {
-          handleGoogleAuth(mode);
-        } else {
-          setError('Google Identity Services SDK is still loading. Please check your internet connection or refresh the page.');
-          setIsAuthenticating(false);
-        }
-      }, 300);
-      return;
-    }
-
-    if (!window.google.accounts.oauth2) {
-      setError('Google OAuth2 client failed to initialize.');
-      setIsAuthenticating(false);
-      return;
-    }
-
-    const authScope = mode === 'signup'
-      ? 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file'
-      : 'https://www.googleapis.com/auth/userinfo.email';
-
-    const codeClient = window.google.accounts.oauth2.initCodeClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: authScope,
-      ux_mode: 'popup',
-      callback: async (response) => {
-        if (response.error) {
-          setError(`Google Auth Error: ${response.error_description || response.error}`);
-          setIsAuthenticating(false);
-          return;
-        }
-
-        if (response.code) {
-          try {
-            const endpoint = mode === 'signup' ? '/auth/signup' : '/auth/login';
-            const bodyPayload = mode === 'signup'
-              ? { code: response.code, name: userNameInput }
-              : { code: response.code };
-
-            const res = await fetch(`${BACKEND_URL}${endpoint}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(bodyPayload)
-            });
-
-            const data = await res.json();
-            if (res.ok) {
-              localStorage.setItem('app_jwt', data.access_token);
-              setAppJwt(data.access_token);
-              setCurrentUser(data.user);
-              showToast(mode === 'signup' ? `Welcome ${data.user.name}!` : `Welcome back, ${data.user.name}!`);
-            } else {
-              setError(data.detail || (mode === 'signup' ? 'Sign up failed' : 'Login failed'));
-            }
-          } catch (err) {
-            setError(`Server connection error during ${mode === 'signup' ? 'sign up' : 'login'}`);
-          } finally {
-            setIsAuthenticating(false);
-          }
-        } else {
-          setIsAuthenticating(false);
-        }
-      }
-    });
-    codeClient.requestCode();
-  };
-
-  // Handlers for Room Operations
-  const handleCreateRoom = async (name, password) => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/rooms`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${appJwt}`
-        },
-        body: JSON.stringify({ name, password })
-      });
-      if (res.ok) {
-        const newRoom = await res.json();
-        setMyRooms(prev => [...prev, newRoom]);
-        setActiveRoomId(newRoom.id);
-        setIsCreateJoinModalOpen(false);
-        showToast(`Created room "${newRoom.name}"`);
-      } else {
-        const err = await res.json();
-        setError(err.detail || 'Failed to create room');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleJoinRoom = async (roomId, password) => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/rooms/${roomId}/join`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${appJwt}`
-        },
-        body: JSON.stringify({ password })
-      });
-      if (res.ok) {
-        await fetchMyRooms();
-        setActiveRoomId(roomId);
-        setIsCreateJoinModalOpen(false);
-        showToast('Successfully joined room');
-      } else {
-        const err = await res.json();
-        setError(err.detail || 'Invalid room ID or password');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Handler for Quota Allocation
-  const handleAllocateStorage = async (allocatedBytes) => {
-    if (!activeRoomId) return;
-    const res = await fetch(`${BACKEND_URL}/rooms/${activeRoomId}/contribute`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${appJwt}`
-      },
-      body: JSON.stringify({ allocated_bytes: allocatedBytes })
-    });
-    if (res.ok) {
-      fetchRoomDashboard(activeRoomId);
-      showToast('Storage quota updated');
-    }
-  };
-
-  // Handlers for Directory Navigation
-  const handleNavigateFolder = (folder) => {
-    setCurrentFolderId(folder.id);
-    setBreadcrumbs(prev => [...prev, { id: folder.id, name: folder.name }]);
-  };
-
-  const handleNavigateBreadcrumb = (crumb, idx) => {
-    setCurrentFolderId(crumb.id);
-    setBreadcrumbs(prev => prev.slice(0, idx + 1));
-  };
-
-  // Handlers for File Actions
-  const handleCreateFolder = async (folderName) => {
-    setBlockingOverlay({
-      title: 'Creating Folder',
-      message: `Creating "${folderName}"...`,
-      subtext: 'Updating directory tree structure...'
-    });
-    try {
-      const res = await fetch(`${BACKEND_URL}/files/room/${activeRoomId}/folder`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${appJwt}`
-        },
-        body: JSON.stringify({ name: folderName, parent_id: currentFolderId })
-      });
-      if (res.ok) {
-        await fetchDirectoryFiles();
-        showToast(`Created folder "${folderName}"`);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setBlockingOverlay(null);
-    }
-  };
-
-  const handleDeleteFile = async (item) => {
-    if (!item) return;
-
-    setBlockingOverlay({
-      title: `Deleting ${item.is_folder ? 'Folder' : 'File'}`,
-      message: `Deleting "${item.name}"...`,
-      subtext: 'Re-indexing directory structure and freeing storage quota...'
-    });
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/files/${item.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${appJwt}` }
-      });
-      if (res.ok) {
-        await fetchDirectoryFiles();
-        await fetchRoomDashboard(activeRoomId);
-        showToast(`Deleted ${item.is_folder ? 'folder' : 'file'} "${item.name}"`);
-      } else {
-        const err = await res.json();
-        showToast(err.detail || `Failed to delete "${item.name}"`, 4000);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast(`Error deleting "${item.name}"`, 4000);
-    } finally {
-      setBlockingOverlay(null);
-    }
-  };
-
-  const handleOpenDeleteAccount = () => {
-    setIsProfileModalOpen(false);
-    setIsDeleteAccountModalOpen(true);
-  };
-
-  const handleAccountDeleted = (result) => {
-    setIsDeleteAccountModalOpen(false);
-    handleLogout();
-    showToast(`Account successfully deleted (${result.migrated_files_count || 0} files migrated, ${result.cascaded_files_count || 0} files removed)`);
-  };
 
   // If unauthenticated, render AuthScreen
   if (!appJwt) {
@@ -497,213 +80,51 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      {/* Toast Notification Banner */}
-      {toastMessage && (
-        <div className="toast-banner">
-          {toastMessage.includes('Preparing & downloading') && (
-            <RefreshCw className="animate-spin" size={16} color="var(--emerald-primary)" />
-          )}
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Left Navigation Rail */}
-      <NavigationRail
-        rooms={myRooms}
+    <>
+      <WorkspaceLayout
+        toastMessage={toastMessage}
+        blockingOverlay={blockingOverlay}
+        myRooms={myRooms}
         activeRoomId={activeRoomId}
-        onSelectRoom={(id) => setActiveRoomId(id)}
-        onOpenCreateJoinModal={() => setIsCreateJoinModalOpen(true)}
-        onOpenProfileModal={() => setIsProfileModalOpen(true)}
-        currentUser={currentUser}
-      />
-
-      {/* Center Main Workspace */}
-      <main className="main-workspace">
-        <StorageHero
-          activeRoom={activeRoom}
-          storageData={storageData}
-          onOpenUploadModal={() => setIsUploadModalOpen(true)}
-          onOpenAllocateModal={() => setIsAllocateModalOpen(true)}
-          onToggleMobileMembers={() => setIsMobileMembersOpen(prev => !prev)}
-        />
-
-        <FileExplorer
-          activeRoomId={activeRoomId}
-          items={fileItems}
-          breadcrumbs={breadcrumbs}
-          onNavigateBreadcrumb={handleNavigateBreadcrumb}
-          onNavigateFolder={handleNavigateFolder}
-          onOpenNewFolderModal={() => setIsNewFolderModalOpen(true)}
-          onOpenRenameModal={(item) => {
-            setFileToRename(item);
-            setIsRenameModalOpen(true);
-          }}
-          onOpenMoveModal={(item) => {
-            setFileToMove(item);
-            setIsMoveModalOpen(true);
-          }}
-          onOpenInfoDrawer={(item) => {
-            setFileForInfo(item);
-            setIsInfoDrawerOpen(true);
-          }}
-          onOpenPreview={(item) => {
-            setFileToPreview(item);
-            setIsPreviewModalOpen(true);
-          }}
-          onDownloadFile={handleDownloadFile}
-          onDeleteFile={(item) => {
-            setFileToDelete(item);
-            setIsConfirmDeleteModalOpen(true);
-          }}
-          loadingFiles={loadingFiles}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
-      </main>
-
-      {/* Right Member Sidebar */}
-      <MemberSidebar
-        members={roomMembers}
-        roomOwnerId={activeRoom?.owner_id}
-        currentUserId={currentUser?.id}
-        isMobileOpen={isMobileMembersOpen}
-        onCloseMobile={() => setIsMobileMembersOpen(false)}
-      />
-
-      {/* Modals & Dialog System */}
-      <CreateJoinRoomModal
-        isOpen={isCreateJoinModalOpen}
-        onClose={() => setIsCreateJoinModalOpen(false)}
-        onCreateRoom={handleCreateRoom}
-        onJoinRoom={handleJoinRoom}
-        error={error}
-      />
-
-      <AllocateStorageModal
-        isOpen={isAllocateModalOpen}
-        onClose={() => setIsAllocateModalOpen(false)}
+        setActiveRoomId={setActiveRoomId}
         activeRoom={activeRoom}
+        storageData={storageData}
+        roomMembers={roomMembers}
         currentUser={currentUser}
-        onAllocateStorage={handleAllocateStorage}
+        fileItems={fileItems}
+        breadcrumbs={breadcrumbs}
+        loadingFiles={loadingFiles}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        isMobileMembersOpen={modalState.isMobileMembersOpen}
+        setIsMobileMembersOpen={modalState.setIsMobileMembersOpen}
+        modalState={modalState}
+        fileHandlers={{
+          handleNavigateBreadcrumb,
+          handleNavigateFolder,
+          handleDownloadFile
+        }}
       />
 
-      <UploadFileModal
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
+      <AppModals
+        modalState={modalState}
+        activeRoom={activeRoom}
         activeRoomId={activeRoomId}
+        currentUser={currentUser}
         currentFolderId={currentFolderId}
         appJwt={appJwt}
-        onUploadSuccess={() => {
-          fetchDirectoryFiles();
-          fetchRoomDashboard(activeRoomId);
-          showToast('File uploaded successfully');
-        }}
-        BACKEND_URL={BACKEND_URL}
+        error={error}
+        handleCreateRoom={handleCreateRoom}
+        handleJoinRoom={handleJoinRoom}
+        handleAllocateStorage={handleAllocateStorage}
+        fetchDirectoryFiles={fetchDirectoryFiles}
+        fetchRoomDashboard={fetchRoomDashboard}
+        showToast={showToast}
+        handleDownloadFile={handleDownloadFile}
+        handleCreateFolder={handleCreateFolder}
+        handleDeleteFile={handleDeleteFile}
+        handleLogout={handleLogout}
       />
-
-      <MoveFileModal
-        isOpen={isMoveModalOpen}
-        onClose={() => {
-          setIsMoveModalOpen(false);
-          setFileToMove(null);
-        }}
-        fileToMove={fileToMove}
-        activeRoomId={activeRoomId}
-        appJwt={appJwt}
-        onMoveSuccess={() => {
-          fetchDirectoryFiles();
-          showToast('Item moved successfully');
-        }}
-        BACKEND_URL={BACKEND_URL}
-      />
-
-      <RenameItemModal
-        isOpen={isRenameModalOpen}
-        onClose={() => {
-          setIsRenameModalOpen(false);
-          setFileToRename(null);
-        }}
-        fileItem={fileToRename}
-        appJwt={appJwt}
-        onRenameSuccess={(updatedItem) => {
-          fetchDirectoryFiles();
-          showToast(`Renamed to "${updatedItem.name}"`);
-        }}
-        BACKEND_URL={BACKEND_URL}
-      />
-
-      <FilePreviewModal
-        isOpen={isPreviewModalOpen}
-        onClose={() => {
-          setIsPreviewModalOpen(false);
-          setFileToPreview(null);
-        }}
-        file={fileToPreview}
-        appJwt={appJwt}
-        BACKEND_URL={BACKEND_URL}
-        onDownloadFile={handleDownloadFile}
-      />
-
-      <FileInfoDrawer
-        isOpen={isInfoDrawerOpen}
-        onClose={() => {
-          setIsInfoDrawerOpen(false);
-          setFileForInfo(null);
-        }}
-        file={fileForInfo}
-      />
-
-      <UserProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        user={currentUser}
-        onLogout={handleLogout}
-        onDeleteAccount={handleOpenDeleteAccount}
-      />
-
-      <DeleteAccountModal
-        isOpen={isDeleteAccountModalOpen}
-        onClose={() => setIsDeleteAccountModalOpen(false)}
-        appJwt={appJwt}
-        BACKEND_URL={BACKEND_URL}
-        onAccountDeleted={handleAccountDeleted}
-      />
-
-      <NewFolderModal
-        isOpen={isNewFolderModalOpen}
-        onClose={() => setIsNewFolderModalOpen(false)}
-        onCreateFolder={handleCreateFolder}
-      />
-
-      <ConfirmDeleteModal
-        isOpen={isConfirmDeleteModalOpen}
-        onClose={() => {
-          setIsConfirmDeleteModalOpen(false);
-          setFileToDelete(null);
-        }}
-        item={fileToDelete}
-        onConfirmDelete={handleDeleteFile}
-      />
-
-      {/* Screen-Wide Blocking Operation Overlay */}
-      {blockingOverlay && (
-        <div className="blocking-overlay">
-          <div className="blocking-overlay-card">
-            <RefreshCw className="animate-spin blocking-overlay-icon" size={38} />
-            <div className="blocking-overlay-title">{blockingOverlay.title || 'Processing Action'}</div>
-            <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', margin: '4px 0 8px', fontWeight: 500 }}>
-              {blockingOverlay.message}
-            </div>
-            {blockingOverlay.subtext && (
-              <div className="blocking-overlay-subtext">{blockingOverlay.subtext}</div>
-            )}
-            <div className="blocking-progress-track">
-              <div className="blocking-progress-fill" />
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

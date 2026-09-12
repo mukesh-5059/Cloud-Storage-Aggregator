@@ -1,0 +1,152 @@
+/* Member Sidebar & User Card Component Styles */
+.member-sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  background-color: var(--bg-panel);
+  border-left: 1px solid var(--border-medium);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  gap: 16px;
+}
+
+.sidebar-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.member-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  cursor: default;
+  position: relative;
+  transition: all var(--transition-fast);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.member-card:hover {
+  background-color: var(--bg-elevated);
+  border-color: var(--border-medium);
+}
+
+.member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.member-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.member-id-tag {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.owner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--emerald-bg-tint);
+  color: var(--emerald-primary);
+  border: 1px solid var(--border-emerald);
+}
+
+/* Member Sidebar Details Drawer */
+.member-details-drawer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.member-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.member-detail-label {
+  color: var(--text-muted);
+}
+
+.member-detail-val {
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+/* User Hover Popover Card */
+.user-hover-card {
+  position: absolute;
+  right: 100%;
+  margin-right: 12px;
+  top: 0;
+  width: 240px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-medium);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hover-card-header {
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+}
+
+.hover-card-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.hover-card-email {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.hover-card-stat {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.hover-card-stat-val {
+  color: var(--emerald-primary);
+  font-weight: 600;
+}
