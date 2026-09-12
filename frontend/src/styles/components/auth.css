@@ -73,6 +73,46 @@
   background-color: var(--bg-elevated);
 }
 
+.auth-google-btn.authenticating {
+  border-color: var(--emerald-primary);
+  background-color: var(--emerald-bg-tint);
+  box-shadow: 0 0 16px var(--emerald-glow);
+}
+
+.auth-progress-track {
+  width: 100%;
+  height: 4px;
+  background-color: var(--bg-surface);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  margin-top: -8px;
+}
+
+.auth-progress-fill {
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(90deg, var(--emerald-dark), var(--emerald-primary));
+  border-radius: 999px;
+  position: absolute;
+  animation: authIndeterminateBar 1.2s infinite ease-in-out;
+}
+
+@keyframes authIndeterminateBar {
+  0% {
+    left: -45%;
+    width: 30%;
+  }
+  50% {
+    left: 30%;
+    width: 50%;
+  }
+  100% {
+    left: 100%;
+    width: 30%;
+  }
+}
+
 .form-error-banner {
   padding: 10px 14px;
   border-radius: 6px;

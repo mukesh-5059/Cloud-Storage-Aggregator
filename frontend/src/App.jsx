@@ -33,6 +33,8 @@ export default function App() {
     activeRoom,
     storageData,
     roomMembers,
+    loadingDashboard,
+    loadingRooms,
     fetchRoomDashboard,
     handleCreateRoom,
     handleJoinRoom,
@@ -90,6 +92,8 @@ export default function App() {
         activeRoom={activeRoom}
         storageData={storageData}
         roomMembers={roomMembers}
+        loadingDashboard={loadingDashboard}
+        loadingRooms={loadingRooms}
         currentUser={currentUser}
         fileItems={fileItems}
         breadcrumbs={breadcrumbs}

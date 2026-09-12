@@ -14,6 +14,8 @@ export default function WorkspaceLayout({
   activeRoom,
   storageData,
   roomMembers,
+  loadingDashboard,
+  loadingRooms,
   currentUser,
   fileItems,
   breadcrumbs,
@@ -64,6 +66,7 @@ export default function WorkspaceLayout({
       {/* Left Navigation Rail */}
       <NavigationRail
         rooms={myRooms}
+        loading={loadingRooms}
         activeRoomId={activeRoomId}
         onSelectRoom={(id) => setActiveRoomId(id)}
         onOpenCreateJoinModal={() => setIsCreateJoinModalOpen(true)}
@@ -76,6 +79,7 @@ export default function WorkspaceLayout({
         <StorageHero
           activeRoom={activeRoom}
           storageData={storageData}
+          loading={loadingDashboard}
           onOpenUploadModal={() => setIsUploadModalOpen(true)}
           onOpenAllocateModal={() => setIsAllocateModalOpen(true)}
           onToggleMobileMembers={() => setIsMobileMembersOpen(prev => !prev)}
@@ -118,6 +122,7 @@ export default function WorkspaceLayout({
       {/* Right Member Sidebar */}
       <MemberSidebar
         members={roomMembers}
+        loading={loadingDashboard}
         roomOwnerId={activeRoom?.owner_id}
         currentUserId={currentUser?.id}
         isMobileOpen={isMobileMembersOpen}

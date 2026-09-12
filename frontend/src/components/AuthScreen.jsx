@@ -37,6 +37,12 @@ export default function AuthScreen({ onGoogleAuth, userNameInput, setUserNameInp
           </button>
         </div>
 
+        {isAuthenticating && (
+          <div className="auth-progress-track">
+            <div className="auth-progress-fill" />
+          </div>
+        )}
+
         {error && (
           <div className="form-error-banner">
             {error}
@@ -59,14 +65,14 @@ export default function AuthScreen({ onGoogleAuth, userNameInput, setUserNameInp
 
         {/* Google OAuth Button */}
         <button
-          className="auth-google-btn"
+          className={`auth-google-btn ${isAuthenticating ? 'authenticating' : ''}`}
           onClick={() => onGoogleAuth(authMode)}
           disabled={isAuthenticating}
         >
           {isAuthenticating ? (
             <>
               <RefreshCw className="animate-spin" size={18} color="var(--emerald-primary)" />
-              <span>Authenticating with Google...</span>
+              <span>Verifying Google Authorization...</span>
             </>
           ) : (
             <>
@@ -82,7 +88,9 @@ export default function AuthScreen({ onGoogleAuth, userNameInput, setUserNameInp
         </button>
 
         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
-          Connect your Google account to manage shared room capacity and virtual files.
+          {isAuthenticating
+            ? 'Communicating with Google OAuth and verifying tokens with server...'
+            : 'Connect your Google account to manage shared room capacity and virtual files.'}
         </p>
       </div>
     </div>

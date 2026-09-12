@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Crown, HardDrive, FileText, X } from 'lucide-react';
 import { formatBytes } from '../utils/formatters';
 
-export default function MemberSidebar({ members, roomOwnerId, currentUserId, isMobileOpen, onCloseMobile }) {
+export default function MemberSidebar({ members, loading, roomOwnerId, currentUserId, isMobileOpen, onCloseMobile }) {
   const [expandedMemberId, setExpandedMemberId] = useState(null);
 
   return (
@@ -21,7 +21,11 @@ export default function MemberSidebar({ members, roomOwnerId, currentUserId, isM
         </div>
 
       <div className="member-list">
-        {members && members.map((member) => {
+        {loading && (!members || members.length === 0) ? (
+          [1, 2, 3].map((idx) => (
+            <div key={idx} className="member-card skeleton-box" style={{ height: '60px', marginBottom: '8px' }} />
+          ))
+        ) : members && members.map((member) => {
           const isOwner = member.id === roomOwnerId;
           const isYou = member.id === currentUserId;
           const isExpanded = expandedMemberId === member.id;

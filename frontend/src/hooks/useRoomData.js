@@ -7,10 +7,13 @@ export function useRoomData(appJwt, showToast, handleLogout, setError, setIsCrea
   const [activeRoom, setActiveRoom] = useState(null);
   const [storageData, setStorageData] = useState({ total_allocated_bytes: 0, total_used_bytes: 0 });
   const [roomMembers, setRoomMembers] = useState([]);
+  const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const [loadingRooms, setLoadingRooms] = useState(true);
 
   // Fetch Joined Rooms
   const fetchMyRooms = useCallback(async () => {
     if (!appJwt) return;
+    setLoadingRooms(true);
     try {
       const res = await fetch(`${BACKEND_URL}/rooms`, {
         headers: { Authorization: `Bearer ${appJwt}` }
@@ -33,12 +36,15 @@ export function useRoomData(appJwt, showToast, handleLogout, setError, setIsCrea
       }
     } catch (err) {
       console.error('Error fetching rooms:', err);
+    } finally {
+      setLoadingRooms(false);
     }
   }, [appJwt, activeRoomId, handleLogout]);
 
   // Fetch Consolidated Room Dashboard
   const fetchRoomDashboard = useCallback(async (roomId) => {
     if (!appJwt || !roomId) return;
+    setLoadingDashboard(true);
     try {
       const res = await fetch(`${BACKEND_URL}/rooms/${roomId}/dashboard`, {
         headers: { Authorization: `Bearer ${appJwt}` }
@@ -52,6 +58,8 @@ export function useRoomData(appJwt, showToast, handleLogout, setError, setIsCrea
       }
     } catch (err) {
       console.error('Failed to load room dashboard:', err);
+    } finally {
+      setLoadingDashboard(false);
     }
     return null;
   }, [appJwt]);
@@ -145,6 +153,8 @@ export function useRoomData(appJwt, showToast, handleLogout, setError, setIsCrea
     activeRoom,
     storageData,
     roomMembers,
+    loadingDashboard,
+    loadingRooms,
     fetchMyRooms,
     fetchRoomDashboard,
     handleCreateRoom,

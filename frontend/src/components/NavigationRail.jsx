@@ -1,7 +1,7 @@
 import React from 'react';
 import { HardDrive, Plus, User as UserIcon } from 'lucide-react';
 
-export default function NavigationRail({ rooms, activeRoomId, onSelectRoom, onOpenCreateJoinModal, onOpenProfileModal, currentUser }) {
+export default function NavigationRail({ rooms, loading, activeRoomId, onSelectRoom, onOpenCreateJoinModal, onOpenProfileModal, currentUser }) {
   return (
     <nav className="nav-rail" aria-label="Room Navigation">
       <div className="rail-room-list">
@@ -9,7 +9,11 @@ export default function NavigationRail({ rooms, activeRoomId, onSelectRoom, onOp
           <HardDrive size={22} />
         </div>
 
-        {rooms.map((room) => {
+        {loading ? (
+          [1, 2, 3].map((idx) => (
+            <div key={idx} className="rail-item skeleton-box" style={{ width: '44px', height: '44px', borderRadius: '12px' }} />
+          ))
+        ) : rooms && rooms.map((room) => {
           const isActive = room.id === activeRoomId;
           const initial = room.name ? room.name.charAt(0).toUpperCase() : 'R';
           return (

@@ -84,18 +84,45 @@ export default function DeleteAccountModal({
           </button>
         </div>
 
-        {loading ? (
-          <div style={{
-            padding: '40px',
-            textAlign: 'center',
-            color: 'var(--text-secondary)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <RefreshCw className="animate-spin" size={32} color="var(--emerald-primary)" />
-            <div style={{ fontSize: '0.9rem' }}>Simulating storage bin-packing & room impact preview...</div>
+        {deleting ? (
+          <div style={{ padding: '32px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', textAlign: 'center' }}>
+            <div style={{ color: 'var(--red-status)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem', fontWeight: 600 }}>
+              <RefreshCw className="animate-spin" size={20} />
+              <span>Deleting Account & Executing Migrations...</span>
+            </div>
+
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', maxWidth: '420px', margin: 0, lineHeight: 1.5 }}>
+              Migrating file allocations to remaining room members, transferring room ownership, revoking Google Drive OAuth tokens, and purging records.
+            </p>
+
+            <div style={{
+              height: '8px',
+              width: '100%',
+              maxWidth: '440px',
+              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+              borderRadius: '4px',
+              overflow: 'hidden',
+              position: 'relative',
+              marginTop: '4px'
+            }}>
+              <div style={{
+                height: '100%',
+                width: '45%',
+                background: 'linear-gradient(90deg, #dc2626, #ef4444, #f87171)',
+                borderRadius: '4px',
+                position: 'absolute',
+                animation: 'authIndeterminateBar 1.2s infinite ease-in-out'
+              }} />
+            </div>
+          </div>
+        ) : loading ? (
+          <div style={{ padding: '16px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center', color: 'var(--emerald-primary)', fontSize: '0.85rem', fontWeight: 600 }}>
+              <RefreshCw className="animate-spin" size={18} />
+              <span>Loading preview...</span>
+            </div>
+            <div className="skeleton-box" style={{ height: '70px', borderRadius: '10px' }} />
+            <div className="skeleton-box" style={{ height: '90px', borderRadius: '10px' }} />
           </div>
         ) : error ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px 0' }}>

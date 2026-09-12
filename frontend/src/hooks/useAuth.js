@@ -45,10 +45,82 @@ export function useAuth(showToast, clearToast, resetAllModals) {
     }
   }, [appJwt, fetchMyProfile]);
 
+  // Handle incoming OAuth redirect response (code or error) from URL query parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authCode = params.get('code');
+    const authError = params.get('error');
+    const authErrorDesc = params.get('error_description');
+    const authState = params.get('state');
+
+    if (authError || authCode) {
+      // Clean up URL query parameters cleanly without page refresh
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (authError) {
+      console.warn('Google Auth error/cancel parameter detected:', authError, authErrorDesc);
+      if (authError === 'access_denied' || authError === 'user_cancelled') {
+        setError('Google sign-in was canceled.');
+      } else {
+        setError(authErrorDesc || `Google Authentication failed (${authError}).`);
+      }
+      setIsAuthenticating(false);
+      sessionStorage.removeItem('pending_signup_name');
+      return;
+    }
+
+    if (authCode) {
+      setIsAuthenticating(true);
+      const pendingName = sessionStorage.getItem('pending_signup_name') || '';
+      const mode = authState === 'signup' || pendingName ? 'signup' : 'login';
+
+      const executeCodeExchange = async () => {
+        try {
+          const endpoint = mode === 'signup' ? '/auth/signup' : '/auth/login';
+          const bodyPayload = {
+            code: authCode,
+            redirect_uri: window.location.origin,
+            ...(mode === 'signup' && pendingName ? { name: pendingName } : {})
+          };
+
+          const res = await fetch(`${BACKEND_URL}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyPayload)
+          });
+
+          const data = await res.json();
+          if (res.ok) {
+            localStorage.setItem('app_jwt', data.access_token);
+            setAppJwt(data.access_token);
+            setCurrentUser(data.user);
+            if (showToast) {
+              showToast(mode === 'signup' ? `Welcome ${data.user.name}!` : `Welcome back, ${data.user.name}!`);
+            }
+          } else {
+            setError(data.detail || (mode === 'signup' ? 'Sign up failed' : 'Login failed'));
+          }
+        } catch (err) {
+          setError(`Server connection error during ${mode === 'signup' ? 'sign up' : 'login'}`);
+        } finally {
+          setIsAuthenticating(false);
+          sessionStorage.removeItem('pending_signup_name');
+        }
+      };
+
+      executeCodeExchange();
+    }
+  }, [showToast]);
+
   // Handle Google OAuth Sign In / Sign Up Code Exchange
   const handleGoogleAuth = (mode) => {
     setError(null);
     setIsAuthenticating(true);
+
+    if (mode === 'signup' && userNameInput.trim()) {
+      sessionStorage.setItem('pending_signup_name', userNameInput.trim());
+    }
 
     if (!window.google || !window.google.accounts) {
       setTimeout(() => {
@@ -72,51 +144,26 @@ export function useAuth(showToast, clearToast, resetAllModals) {
       ? 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.file'
       : 'https://www.googleapis.com/auth/userinfo.email';
 
+    const redirectUri = window.location.origin;
+
     const codeClient = window.google.accounts.oauth2.initCodeClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: authScope,
-      ux_mode: 'popup',
-      callback: async (response) => {
-        if (response.error) {
-          setError(`Google Auth Error: ${response.error_description || response.error}`);
-          setIsAuthenticating(false);
-          return;
-        }
-
-        if (response.code) {
-          try {
-            const endpoint = mode === 'signup' ? '/auth/signup' : '/auth/login';
-            const bodyPayload = mode === 'signup'
-              ? { code: response.code, name: userNameInput }
-              : { code: response.code };
-
-            const res = await fetch(`${BACKEND_URL}${endpoint}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(bodyPayload)
-            });
-
-            const data = await res.json();
-            if (res.ok) {
-              localStorage.setItem('app_jwt', data.access_token);
-              setAppJwt(data.access_token);
-              setCurrentUser(data.user);
-              if (showToast) {
-                showToast(mode === 'signup' ? `Welcome ${data.user.name}!` : `Welcome back, ${data.user.name}!`);
-              }
-            } else {
-              setError(data.detail || (mode === 'signup' ? 'Sign up failed' : 'Login failed'));
-            }
-          } catch (err) {
-            setError(`Server connection error during ${mode === 'signup' ? 'sign up' : 'login'}`);
-          } finally {
-            setIsAuthenticating(false);
-          }
+      ux_mode: 'redirect',
+      redirect_uri: redirectUri,
+      state: mode,
+      error_callback: (res) => {
+        console.warn('Google OAuth error callback:', res);
+        setIsAuthenticating(false);
+        if (res.error === 'access_denied' || res.type === 'popup_closed') {
+          setError('Google sign-in was canceled.');
         } else {
-          setIsAuthenticating(false);
+          setError(`Google Auth Error: ${res.error_description || res.error || 'Authentication canceled'}`);
         }
+        sessionStorage.removeItem('pending_signup_name');
       }
     });
+
     codeClient.requestCode();
   };
 

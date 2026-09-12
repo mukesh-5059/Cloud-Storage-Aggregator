@@ -2,8 +2,30 @@ import React, { useState } from 'react';
 import { UploadCloud, HardDriveDownload, Users, Copy, Check } from 'lucide-react';
 import { formatBytes } from '../utils/formatters';
 
-export default function StorageHero({ activeRoom, storageData, onOpenUploadModal, onOpenAllocateModal, onToggleMobileMembers }) {
+export default function StorageHero({ activeRoom, storageData, loading, onOpenUploadModal, onOpenAllocateModal, onToggleMobileMembers }) {
   const [copied, setCopied] = useState(false);
+
+  if (loading && !activeRoom) {
+    return (
+      <div className="storage-hero">
+        <div className="storage-hero-top">
+          <div className="storage-room-meta">
+            <div>
+              <div className="skeleton-box" style={{ width: '180px', height: '24px', marginBottom: '8px' }} />
+              <div className="skeleton-box" style={{ width: '120px', height: '18px' }} />
+            </div>
+          </div>
+          <div className="storage-hero-actions">
+            <div className="skeleton-box" style={{ width: '100px', height: '36px', borderRadius: '6px' }} />
+            <div className="skeleton-box" style={{ width: '120px', height: '36px', borderRadius: '6px' }} />
+          </div>
+        </div>
+        <div className="storage-progress-container">
+          <div className="skeleton-box" style={{ width: '100%', height: '10px', borderRadius: '5px' }} />
+        </div>
+      </div>
+    );
+  }
 
   if (!activeRoom) return null;
 

@@ -304,10 +304,25 @@ const FileExplorer = React.memo(function FileExplorer({
       {/* File Explorer Content View (List vs Grid) */}
       <div className="file-table-wrapper">
         {loadingFiles ? (
-          <div className="explorer-empty-state">
-            <RefreshCw className="animate-spin" size={28} color="var(--emerald-primary)" />
-            <p className="explorer-empty-title">Loading folder items...</p>
-          </div>
+          viewMode === 'grid' ? (
+            <div className="file-grid">
+              {[1, 2, 3, 4, 5, 6].map((idx) => (
+                <div key={idx} className="grid-card skeleton-box" style={{ height: '140px' }} />
+              ))}
+            </div>
+          ) : (
+            <div className="skeleton-list-container">
+              {[1, 2, 3, 4, 5].map((idx) => (
+                <div key={idx} className="skeleton-row">
+                  <div className="skeleton-box" style={{ width: '24px', height: '24px', borderRadius: '4px' }} />
+                  <div className="skeleton-box" style={{ width: '35%', height: '16px' }} />
+                  <div className="skeleton-box" style={{ width: '15%', height: '16px', marginLeft: 'auto' }} />
+                  <div className="skeleton-box" style={{ width: '15%', height: '16px' }} />
+                  <div className="skeleton-box" style={{ width: '15%', height: '16px' }} />
+                </div>
+              ))}
+            </div>
+          )
         ) : (!sortedItems || sortedItems.length === 0) ? (
           <div className="explorer-empty-state">
             <Folder size={48} className="explorer-empty-icon" />

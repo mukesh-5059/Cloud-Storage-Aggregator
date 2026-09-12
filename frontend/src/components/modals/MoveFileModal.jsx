@@ -150,8 +150,10 @@ export default function MoveFileModal({
           padding: '8px'
         }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Loading folders...
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '4px 0' }}>
+              {[1, 2, 3].map((idx) => (
+                <div key={idx} className="skeleton-box" style={{ height: '36px', borderRadius: '6px' }} />
+              ))}
             </div>
           ) : folders.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
