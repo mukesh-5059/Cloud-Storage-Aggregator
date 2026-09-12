@@ -2,7 +2,7 @@ import logging
 import bcrypt
 import secrets
 from typing import List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 
 from models import User, Room, UserRoom, FileItem
@@ -35,13 +35,12 @@ def create_room(db: Session, name: str, password: str, owner_id: int) -> Room:
     hashed_pwd = hash_room_password(password)
     room_id = generate_random_room_id(db)
     room = Room(id=room_id, name=name, password=hashed_pwd, owner_id=owner_id)
-    db.add(room)
-    db.commit()
-    db.refresh(room)
-
     user_room = UserRoom(user_id=owner_id, room_id=room.id, allocated_bytes=0, used_bytes=0)
+    
+    db.add(room)
     db.add(user_room)
     db.commit()
+    db.refresh(room)
     return room
 
 def join_room(db: Session, room_id: int, user_id: int, password: str) -> Dict[str, str]:
@@ -65,22 +64,30 @@ def join_room(db: Session, room_id: int, user_id: int, password: str) -> Dict[st
     db.commit()
     return {"message": "Successfully joined room"}
 
-def get_user_rooms(db: Session, user_id: int) -> List[Room]:
-    memberships = db.query(UserRoom).filter(UserRoom.user_id == user_id).all()
-    return [m.room for m in memberships]
+def get_user_rooms(db: Session, user_id: int):
+    memberships = db.query(UserRoom).options(
+        joinedload(UserRoom.room)
+    ).filter(UserRoom.user_id == user_id).all()
+    return [
+        {
+            "id": m.room.id,
+            "name": m.room.name,
+            "owner_id": m.room.owner_id
+        }
+        for m in memberships if m.room
+    ]
 
 def get_room_members(db: Session, room_id: int, user_id: int) -> List[Dict[str, Any]]:
-    room = db.query(Room).filter(Room.id == room_id).first()
-    if not room:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
-
     membership = db.query(UserRoom).filter(UserRoom.user_id == user_id, UserRoom.room_id == room_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You are not a member of this room")
 
-    members_data = []
-    for m in room.user_memberships:
-        members_data.append({
+    memberships = db.query(UserRoom).options(
+        joinedload(UserRoom.user)
+    ).filter(UserRoom.room_id == room_id).all()
+
+    return [
+        {
             "id": m.user.id,
             "email": m.user.email,
             "name": m.user.name,
@@ -88,8 +95,9 @@ def get_room_members(db: Session, room_id: int, user_id: int) -> List[Dict[str, 
             "storage_usage": m.user.storage_usage,
             "allocated_bytes": m.allocated_bytes,
             "files_count": m.files_hosted_count
-        })
-    return members_data
+        }
+        for m in memberships if m.user
+    ]
 
 async def contribute_storage(db: Session, room_id: int, current_user: User, allocated_bytes: int) -> UserRoom:
     membership = db.query(UserRoom).filter(
@@ -111,7 +119,7 @@ async def contribute_storage(db: Session, room_id: int, current_user: User, allo
                 detail="User has no active Google OAuth authorization to create storage folder."
             )
         try:
-            folder_id = await gdrive_service.create_room_folder(access_token, gdrive_folder_name)
+            folder_id = await gdrive_service.create_room_folder(access_token, gdrive_folder_name, user=current_user, db=db)
             membership.gdrive_folder_id = folder_id
         except Exception as e:
             logger.error(f"Error creating Google Drive folder: {e}")
@@ -126,7 +134,10 @@ def get_room_dashboard(db: Session, room_id: int, user_id: int) -> Dict[str, Any
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You are not a member of this room")
 
-    room = db.query(Room).filter(Room.id == room_id).first()
+    room = db.query(Room).options(
+        joinedload(Room.user_memberships).joinedload(UserRoom.user)
+    ).filter(Room.id == room_id).first()
+
     if not room:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
 
@@ -144,10 +155,13 @@ def get_room_dashboard(db: Session, room_id: int, user_id: int) -> Dict[str, Any
             "used_bytes": m.used_bytes,
             "files_hosted_count": m.files_hosted_count
         }
-        for m in room.user_memberships
+        for m in room.user_memberships if m.user
     ]
 
-    root_files = db.query(FileItem).filter(
+    root_files = db.query(FileItem).options(
+        joinedload(FileItem.uploader),
+        joinedload(FileItem.storage_user)
+    ).filter(
         FileItem.room_id == room_id,
         FileItem.parent_id.is_(None)
     ).all()
@@ -184,3 +198,4 @@ def get_room_dashboard(db: Session, room_id: int, user_id: int) -> Dict[str, Any
         "members": members_list,
         "root_files": root_files_data
     }
+

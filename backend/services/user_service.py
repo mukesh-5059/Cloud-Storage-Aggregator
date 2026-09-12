@@ -1,7 +1,8 @@
 import logging
 import asyncio
+from collections import defaultdict
 from typing import Dict, Any, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 
 from models import User, Room, UserRoom, FileItem
@@ -11,8 +12,46 @@ from services import gdrive_service
 logger = logging.getLogger("user_service")
 
 def simulate_deletion_bin_packing(db: Session, current_user: User) -> AccountDeletionPreviewResponse:
-    """Simulates multi-room bin-packing account deletion preview."""
-    user_memberships = db.query(UserRoom).filter(UserRoom.user_id == current_user.id).all()
+    """Simulates multi-room bin-packing account deletion preview with batched queries."""
+    user_memberships = db.query(UserRoom).options(
+        joinedload(UserRoom.room)
+    ).filter(UserRoom.user_id == current_user.id).all()
+
+    if not user_memberships:
+        return AccountDeletionPreviewResponse(
+            total_hosted_files=0,
+            total_hosted_bytes=0,
+            migratable_files_count=0,
+            migratable_bytes=0,
+            cascaded_files_count=0,
+            cascaded_bytes=0,
+            rooms_breakdown=[]
+        )
+
+    room_ids = [m.room_id for m in user_memberships]
+
+    # Batch query 1: Fetch all hosted files for current_user across all relevant rooms
+    all_hosted_files = db.query(FileItem).filter(
+        FileItem.room_id.in_(room_ids),
+        FileItem.storage_user_id == current_user.id,
+        FileItem.is_folder == False
+    ).all()
+
+    files_by_room = defaultdict(list)
+    for f in all_hosted_files:
+        files_by_room[f.room_id].append(f)
+
+    # Batch query 2: Fetch all other memberships across all relevant rooms
+    all_other_memberships = db.query(UserRoom).options(
+        joinedload(UserRoom.user)
+    ).filter(
+        UserRoom.room_id.in_(room_ids),
+        UserRoom.user_id != current_user.id
+    ).all()
+
+    others_by_room = defaultdict(list)
+    for m in all_other_memberships:
+        others_by_room[m.room_id].append(m)
 
     total_hosted_files = 0
     total_hosted_bytes = 0
@@ -25,18 +64,13 @@ def simulate_deletion_bin_packing(db: Session, current_user: User) -> AccountDel
 
     for membership in user_memberships:
         room = membership.room
-        room_hosted_files = db.query(FileItem).filter(
-            FileItem.room_id == room.id,
-            FileItem.storage_user_id == current_user.id,
-            FileItem.is_folder == False
-        ).all()
+        if not room:
+            continue
 
+        room_hosted_files = files_by_room[room.id]
         room_hosted_files.sort(key=lambda f: f.size_bytes, reverse=True)
 
-        other_memberships = db.query(UserRoom).filter(
-            UserRoom.room_id == room.id,
-            UserRoom.user_id != current_user.id
-        ).all()
+        other_memberships = others_by_room[room.id]
 
         virtual_free_capacity = {
             m.user_id: max(0, m.allocated_bytes - m.used_bytes)
@@ -151,46 +185,40 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
                 async def process_single_migration(item: FileItem, host: UserRoom):
                     async with semaphore:
                         target_user = db.query(User).filter(User.id == host.user_id).first()
-                        target_access_token = await gdrive_service.get_fresh_google_access_token(target_user, db) if target_user else None
+                        if not target_user:
+                            raise RuntimeError(f"Target user ID {host.user_id} not found in database.")
 
-                        new_gdrive_id = None
-                        if user_access_token and target_access_token and target_user and item.gdrive_file_id:
-                            try:
-                                metadata = {
-                                    "name": item.name,
-                                    "mimeType": item.mime_type or "application/octet-stream"
-                                }
-                                if host.gdrive_folder_id:
-                                    metadata["parents"] = [host.gdrive_folder_id]
+                        current_user_token = await gdrive_service.get_fresh_google_access_token(current_user, db)
+                        target_access_token = await gdrive_service.get_fresh_google_access_token(target_user, db)
+                        if not target_access_token or not current_user_token or not item.gdrive_file_id:
+                            raise RuntimeError(f"Missing Google Drive access token or file ID for file '{item.name}'.")
 
-                                # 1. Fast Google Drive cloud server-side copy (~300ms)
-                                new_gdrive_id = await gdrive_service.copy_file(
-                                    target_access_token, item.gdrive_file_id, metadata
-                                )
+                        metadata = {
+                            "name": item.name,
+                            "mimeType": item.mime_type or "application/octet-stream"
+                        }
+                        if host.gdrive_folder_id:
+                            metadata["parents"] = [host.gdrive_folder_id]
 
-                                # 2. Fallback to byte download/upload if server-side copy fails
-                                if not new_gdrive_id:
-                                    content = await gdrive_service.download_file_content(user_access_token, item.gdrive_file_id)
-                                    if content:
-                                        new_gdrive_id = await gdrive_service.upload_file_multipart(
-                                            target_access_token, metadata, item.name, content, item.mime_type or "application/octet-stream"
-                                        )
+                        content = await gdrive_service.download_file_content(
+                            current_user_token, item.gdrive_file_id, user=current_user, db=db
+                        )
+                        if not content:
+                            raise RuntimeError(f"Failed to download file '{item.name}' from User {current_user.id}'s Drive.")
 
-                                if new_gdrive_id:
-                                    # 3. Fire-and-forget background permission setting (non-blocking)
-                                    asyncio.create_task(gdrive_service.set_file_permission(target_access_token, new_gdrive_id))
-                                    # 4. Delete old file from deleting user's Drive
-                                    await gdrive_service.delete_file(user_access_token, item.gdrive_file_id, user=current_user, db=db)
-                                    logger.info(f"Physically migrated file '{item.name}' from User {current_user.id} to User {target_user.id}")
-                            except Exception as e:
-                                logger.error(f"Failed physical Drive migration for file {item.id}: {e}")
+                        new_gdrive_id = await gdrive_service.upload_file_multipart(
+                            target_access_token, metadata, item.name, content, item.mime_type or "application/octet-stream", user=target_user, db=db
+                        )
+                        if not new_gdrive_id:
+                            raise RuntimeError(f"Failed to upload file '{item.name}' to User {target_user.id}'s Drive.")
 
-                        # 5. Immediate per-file DB update & commit for real-time room storage consistency
+                        await gdrive_service.set_file_permission(target_access_token, new_gdrive_id)
+                        await gdrive_service.delete_file(current_user_token, item.gdrive_file_id, user=current_user, db=db)
+
+                        logger.info(f"Server-proxied file '{item.name}' ({len(content)} bytes) from User {current_user.id} to User {target_user.id} (New Drive ID: {new_gdrive_id})")
+
                         item.storage_user_id = host.user_id
-                        if new_gdrive_id:
-                            item.gdrive_file_id = new_gdrive_id
-
-                        db.commit()
+                        item.gdrive_file_id = new_gdrive_id
 
                 migration_tasks.append(process_single_migration(file_item, target_host))
                 total_migrated += 1
@@ -201,11 +229,20 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
                     except Exception as e:
                         logger.warning(f"Could not delete cascaded file from Drive: {e}")
                 db.delete(file_item)
-                db.commit()
                 total_cascaded += 1
 
         if migration_tasks:
-            await asyncio.gather(*migration_tasks)
+            try:
+                await asyncio.gather(*migration_tasks)
+            except Exception as migration_err:
+                db.rollback()
+                logger.error(f"ABORTING account deletion for User {current_user.id}: Google Drive file migration failed ({migration_err}). DB rolled back.")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Account deletion aborted because Google Drive file migration failed: {migration_err}. Account and files remain intact."
+                )
+
+        db.commit()
 
         if user_access_token and membership.gdrive_folder_id:
             try:
@@ -216,11 +253,8 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
 
     token_to_revoke = current_user.google_refresh_token or current_user.google_access_token
     if token_to_revoke:
-        try:
-            await gdrive_service.revoke_oauth_token(token_to_revoke)
-            logger.info(f"Successfully revoked Google OAuth token for deleted User {current_user.id}")
-        except Exception as e:
-            logger.warning(f"Could not revoke Google token: {e}")
+        asyncio.create_task(gdrive_service.revoke_oauth_token(token_to_revoke))
+        logger.info(f"Dispatched asynchronous Google OAuth token revocation for deleted User {current_user.id}")
 
     rooms_to_delete = []
     owned_rooms = db.query(Room).filter(Room.owner_id == current_user.id).all()
@@ -235,7 +269,6 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
         db.delete(r)
 
     db.flush()
-    current_user.created_rooms.clear()
     db.delete(current_user)
     db.commit()
 

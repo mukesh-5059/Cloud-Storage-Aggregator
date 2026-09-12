@@ -152,6 +152,7 @@ export function useAuth(showToast, clearToast, resetAllModals) {
       ux_mode: 'redirect',
       redirect_uri: redirectUri,
       state: mode,
+      prompt: 'select_account',
       error_callback: (res) => {
         console.warn('Google OAuth error callback:', res);
         setIsAuthenticating(false);

@@ -21,7 +21,7 @@ async def signup_google_user(payload: GoogleSignUpRequest, db: Session) -> Token
         "code": payload.code,
         "client_id": GOOGLE_CLIENT_ID,
         "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": "postmessage",
+        "redirect_uri": payload.redirect_uri or "postmessage",
         "grant_type": "authorization_code"
     }
 
@@ -147,7 +147,7 @@ async def login_google_user(payload: GoogleLoginRequest, db: Session) -> TokenRe
             "code": payload.code,
             "client_id": GOOGLE_CLIENT_ID,
             "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": "postmessage",
+            "redirect_uri": payload.redirect_uri or "postmessage",
             "grant_type": "authorization_code"
         }
         try:

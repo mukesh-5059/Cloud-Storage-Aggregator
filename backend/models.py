@@ -39,7 +39,7 @@ class Room(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     password = Column(String, nullable=False)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     owner = relationship("User", back_populates="created_rooms")
     user_memberships = relationship("UserRoom", back_populates="room", cascade="all, delete-orphan")
@@ -67,7 +67,10 @@ class FileItem(Base):
 
     __table_args__ = (
         Index("idx_file_items_room_parent", "room_id", "parent_id"),
+        Index("idx_file_items_room_storage_folder", "room_id", "storage_user_id", "is_folder"),
+        Index("idx_file_items_room_name", "room_id", "name"),
     )
+
 
 
 

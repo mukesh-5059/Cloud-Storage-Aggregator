@@ -82,7 +82,13 @@ async def log_requests(request: Request, call_next):
     else:
         status_str = f"\x1b[31;1m{status_code}\x1b[0m"
 
-    logger.info(f"HTTP {request.method} {request.url.path} - Status {status_str} - Completed in {duration_ms:.1f}ms")
+    method_str = request.method
+    if request.method == "OPTIONS":
+        preflight_target = request.headers.get("access-control-request-method")
+        if preflight_target:
+            method_str = f"OPTIONS (Preflight for {preflight_target.upper()})"
+
+    logger.info(f"HTTP {method_str} {request.url.path} - Status {status_str} - Completed in {duration_ms:.1f}ms")
     return response
 
 app.include_router(auth.router)

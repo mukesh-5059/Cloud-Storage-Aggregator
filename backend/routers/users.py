@@ -1,5 +1,6 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -27,7 +28,7 @@ async def get_account_deletion_preview(
 ):
     """Simulates multi-room bin-packing account deletion dry-run preview."""
     logger.info(f"User ID {current_user.id} ({current_user.email}) requested account deletion preview")
-    return user_service.simulate_deletion_bin_packing(db, current_user)
+    return await run_in_threadpool(user_service.simulate_deletion_bin_packing, db, current_user)
 
 @router.delete("/me")
 async def delete_my_account(

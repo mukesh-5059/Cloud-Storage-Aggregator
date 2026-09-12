@@ -3,8 +3,8 @@ import asyncio
 import httpx
 from typing import List, Optional
 from fastapi import HTTPException, status, BackgroundTasks
-from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
+from fastapi.responses import RedirectResponse, Response
+from sqlalchemy.orm import Session, joinedload
 
 from models import User, UserRoom, FileItem
 from schemas import (
@@ -32,19 +32,36 @@ def check_membership(user_id: int, room_id: int, db: Session):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Not a room member")
     return membership
 
-def list_room_files(db: Session, user_id: int, room_id: int, parent_id: Optional[int]) -> List[FileItem]:
+def list_room_files(db: Session, user_id: int, room_id: int, parent_id: Optional[int]):
     """Retrieves file/folder items for a room directory."""
     check_membership(user_id, room_id, db)
-    files = db.query(FileItem).filter(
+
+    files = db.query(FileItem).options(
+        joinedload(FileItem.uploader),
+        joinedload(FileItem.storage_user)
+    ).filter(
         FileItem.room_id == room_id,
         FileItem.parent_id == parent_id
     ).all()
 
-    for item in files:
-        item.uploader_name = item.uploader.name if item.uploader else "Unknown"
-        item.host_name = item.storage_user.name if item.storage_user else "Unknown"
-
-    return files
+    return [
+        {
+            "id": item.id,
+            "room_id": item.room_id,
+            "parent_id": item.parent_id,
+            "name": item.name,
+            "is_folder": item.is_folder,
+            "size_bytes": item.size_bytes,
+            "mime_type": item.mime_type,
+            "uploader_id": item.uploader_id,
+            "storage_user_id": item.storage_user_id,
+            "uploader_name": item.uploader.name if item.uploader else "Unknown",
+            "host_name": item.storage_user.name if item.storage_user else "Unknown",
+            "gdrive_file_id": item.gdrive_file_id,
+            "created_at": item.created_at
+        }
+        for item in files
+    ]
 
 def search_room_files(db: Session, user_id: int, room_id: int, q: str) -> List[FileItem]:
     """Searches files/folders by string match inside a room."""
@@ -53,7 +70,10 @@ def search_room_files(db: Session, user_id: int, room_id: int, q: str) -> List[F
         return []
 
     query_str = f"%{q.strip()}%"
-    files = db.query(FileItem).filter(
+    files = db.query(FileItem).options(
+        joinedload(FileItem.uploader),
+        joinedload(FileItem.storage_user)
+    ).filter(
         FileItem.room_id == room_id,
         FileItem.name.ilike(query_str)
     ).all()
@@ -257,8 +277,8 @@ async def complete_file_upload(
     file_item.host_name = storage_user.name if storage_user else "Unknown"
     return file_item
 
-def get_file_download_redirect(db: Session, user_id: int, file_id: int) -> RedirectResponse:
-    """Generates redirect response for Google Drive download."""
+def get_file_download_url(db: Session, user_id: int, file_id: int) -> dict:
+    """Generates direct Google Drive download link for the frontend."""
     item = db.query(FileItem).filter(FileItem.id == file_id).first()
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File item not found")
@@ -270,7 +290,11 @@ def get_file_download_redirect(db: Session, user_id: int, file_id: int) -> Redir
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File has no Google Drive ID stored")
 
     direct_url = f"https://drive.google.com/uc?id={item.gdrive_file_id}&export=download"
-    return RedirectResponse(url=direct_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+    return {
+        "download_url": direct_url,
+        "file_name": item.name,
+        "file_id": item.id
+    }
 
 def move_file_item(db: Session, user_id: int, file_id: int, payload: FileMoveRequest) -> FileItem:
     """Moves a file/folder to a new parent directory."""
@@ -280,12 +304,22 @@ def move_file_item(db: Session, user_id: int, file_id: int, payload: FileMoveReq
 
     check_membership(user_id, item.room_id, db)
     if payload.new_parent_id:
+        if payload.new_parent_id == file_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot move a folder into itself")
+
         new_parent = db.query(FileItem).filter(
             FileItem.id == payload.new_parent_id,
             FileItem.room_id == item.room_id
         ).first()
         if not new_parent or not new_parent.is_folder:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid target folder ID")
+
+        # Cycle check to prevent moving a parent directory into its own subfolder
+        curr = new_parent
+        while curr:
+            if curr.id == file_id:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot move a folder into its own subfolder")
+            curr = db.query(FileItem).filter(FileItem.id == curr.parent_id).first() if curr.parent_id else None
 
     item.parent_id = payload.new_parent_id
     db.commit()
@@ -328,41 +362,71 @@ async def rename_file_item(db: Session, user_id: int, file_id: int, payload: Fil
     item.host_name = item.storage_user.name if item.storage_user else "Unknown"
     return item
 
-async def _delete_item_recursively(item: FileItem, db: Session):
-    """Internal helper to delete children folders/files recursively."""
+def _collect_items_recursively(item: FileItem, db: Session, collected: List[FileItem]):
+    """Collects an item and all its subfolders/files into a list (post-order so children come first)."""
     if item.is_folder:
         children = db.query(FileItem).filter(FileItem.parent_id == item.id).all()
         for child in children:
-            await _delete_item_recursively(child, db)
-    else:
-        if item.storage_user_id and item.gdrive_file_id:
-            storage_user = db.query(User).filter(User.id == item.storage_user_id).first()
-            access_token = await gdrive_service.get_fresh_google_access_token(storage_user, db) if storage_user else None
-            if access_token:
-                try:
-                    await gdrive_service.delete_file(access_token, item.gdrive_file_id, user=storage_user, db=db)
-                except Exception as e:
-                    logger.warning(f"Failed to delete file {item.gdrive_file_id} from Google Drive: {e}")
+            _collect_items_recursively(child, db, collected)
+    collected.append(item)
 
+async def delete_file_item(db: Session, user_id: int, file_id: int) -> dict:
+    """Deletes a file or directory tree in parallel, freeing contributor quota."""
+    root_item = db.query(FileItem).filter(FileItem.id == file_id).first()
+    if not root_item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File item not found")
 
-        if item.storage_user_id:
-            membership = db.query(UserRoom).filter(
-                UserRoom.room_id == item.room_id,
-                UserRoom.user_id == item.storage_user_id
-            ).first()
+    check_membership(user_id, root_item.room_id, db)
+
+    items_to_delete: List[FileItem] = []
+    _collect_items_recursively(root_item, db, items_to_delete)
+
+    files_with_gdrive = [item for item in items_to_delete if not item.is_folder and item.storage_user_id and item.gdrive_file_id]
+
+    if files_with_gdrive:
+        user_ids = {item.storage_user_id for item in files_with_gdrive}
+        users_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+        tokens_map = {}
+        for uid, u in users_map.items():
+            t = await gdrive_service.get_fresh_google_access_token(u, db)
+            if t:
+                tokens_map[uid] = t
+
+        semaphore = asyncio.Semaphore(5)
+
+        async def delete_single_gdrive_file(file_item: FileItem):
+            async with semaphore:
+                u = users_map.get(file_item.storage_user_id)
+                token = tokens_map.get(file_item.storage_user_id)
+                if token:
+                    try:
+                        await gdrive_service.delete_file(token, file_item.gdrive_file_id, user=u, db=db)
+                    except Exception as e:
+                        logger.warning(f"Failed to delete Google Drive file {file_item.gdrive_file_id}: {e}")
+
+        # Non-blocking background execution of physical Google Drive file deletions
+        asyncio.create_task(asyncio.gather(*[delete_single_gdrive_file(f) for f in files_with_gdrive]))
+
+    # Batch fetch UserRoom records to update quota
+    storage_keys = {(item.room_id, item.storage_user_id) for item in items_to_delete if not item.is_folder and item.storage_user_id}
+    memberships_map = {}
+    if storage_keys:
+        room_ids = {k[0] for k in storage_keys}
+        u_ids = {k[1] for k in storage_keys}
+        fetched_memberships = db.query(UserRoom).filter(
+            UserRoom.room_id.in_(room_ids),
+            UserRoom.user_id.in_(u_ids)
+        ).all()
+        for m in fetched_memberships:
+            memberships_map[(m.room_id, m.user_id)] = m
+
+    for item in items_to_delete:
+        if not item.is_folder and item.storage_user_id:
+            membership = memberships_map.get((item.room_id, item.storage_user_id))
             if membership:
                 membership.used_bytes = max(0, membership.used_bytes - item.size_bytes)
                 membership.files_hosted_count = max(0, membership.files_hosted_count - 1)
+        db.delete(item)
 
-    db.delete(item)
     db.commit()
-
-async def delete_file_item(db: Session, user_id: int, file_id: int) -> dict:
-    """Deletes a file or directory tree, freeing contributor quota."""
-    item = db.query(FileItem).filter(FileItem.id == file_id).first()
-    if not item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File item not found")
-
-    check_membership(user_id, item.room_id, db)
-    await _delete_item_recursively(item, db)
     return {"message": "Item deleted successfully", "id": file_id}

@@ -69,12 +69,12 @@ async def complete_upload(
     return await file_service.complete_file_upload(db, current_user, room_id, payload, background_tasks)
 
 @router.get("/{file_id}/download")
-async def download_file(
+def download_file(
     file_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return file_service.get_file_download_redirect(db, current_user.id, file_id)
+    return file_service.get_file_download_url(db, current_user.id, file_id)
 
 @router.patch("/{file_id}/move", response_model=FileItemResponse)
 def move_file(

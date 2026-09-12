@@ -5,11 +5,13 @@ from datetime import datetime
 class GoogleSignUpRequest(BaseModel):
     code: str
     name: Optional[str] = None
+    redirect_uri: Optional[str] = None
 
 class GoogleLoginRequest(BaseModel):
     code: Optional[str] = None
     id_token: Optional[str] = None
     access_token: Optional[str] = None
+    redirect_uri: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int

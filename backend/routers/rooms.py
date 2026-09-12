@@ -1,5 +1,6 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -19,7 +20,7 @@ async def create_room(
     db: Session = Depends(get_db)
 ):
     logger.info(f"User ID {current_user.id} ({current_user.email}) creating room '{payload.name}'")
-    return room_service.create_room(db, payload.name, payload.password, current_user.id)
+    return await run_in_threadpool(room_service.create_room, db, payload.name, payload.password, current_user.id)
 
 @router.post("/{room_id}/join")
 async def join_room(
@@ -29,7 +30,7 @@ async def join_room(
     db: Session = Depends(get_db)
 ):
     logger.info(f"User ID {current_user.id} joining Room ID {room_id}")
-    return room_service.join_room(db, room_id, current_user.id, payload.password)
+    return await run_in_threadpool(room_service.join_room, db, room_id, current_user.id, payload.password)
 
 @router.get("", response_model=List[RoomResponse])
 async def get_my_rooms(
@@ -37,7 +38,7 @@ async def get_my_rooms(
     db: Session = Depends(get_db)
 ):
     logger.info(f"User ID {current_user.id} fetching joined rooms list")
-    return room_service.get_user_rooms(db, current_user.id)
+    return await run_in_threadpool(room_service.get_user_rooms, db, current_user.id)
 
 @router.get("/{room_id}/users", response_model=List[UserResponse])
 async def get_room_users(
@@ -46,7 +47,7 @@ async def get_room_users(
     db: Session = Depends(get_db)
 ):
     logger.info(f"User ID {current_user.id} requesting members list for Room ID {room_id}")
-    return room_service.get_room_members(db, room_id, current_user.id)
+    return await run_in_threadpool(room_service.get_room_members, db, room_id, current_user.id)
 
 @router.post("/{room_id}/contribute", response_model=ContributionResponse)
 async def contribute_storage(
@@ -65,4 +66,5 @@ async def get_room_dashboard(
     db: Session = Depends(get_db)
 ):
     logger.info(f"Retrieved consolidated Dashboard for Room ID {room_id} (User ID {current_user.id})")
-    return room_service.get_room_dashboard(db, room_id, current_user.id)
+    return await run_in_threadpool(room_service.get_room_dashboard, db, room_id, current_user.id)
+
