@@ -1,14 +1,25 @@
-import React from 'react';
-import { UploadCloud, HardDriveDownload, Users } from 'lucide-react';
+import React, { useState } from 'react';
+import { UploadCloud, HardDriveDownload, Users, Copy, Check } from 'lucide-react';
 import { formatBytes } from '../utils/formatters';
 
 export default function StorageHero({ activeRoom, storageData, onOpenUploadModal, onOpenAllocateModal, onToggleMobileMembers }) {
+  const [copied, setCopied] = useState(false);
+
   if (!activeRoom) return null;
 
   const totalAllocated = storageData?.total_allocated_bytes || 0;
   const totalUsed = storageData?.total_used_bytes || 0;
   const availableBytes = Math.max(0, totalAllocated - totalUsed);
   const usagePercentage = totalAllocated > 0 ? Math.min(100, Math.round((totalUsed / totalAllocated) * 100)) : 0;
+
+  const handleCopyRoomId = (e) => {
+    e.stopPropagation();
+    if (activeRoom?.id !== undefined) {
+      navigator.clipboard.writeText(String(activeRoom.id));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
 
   return (
     <div className="storage-hero">
@@ -17,7 +28,14 @@ export default function StorageHero({ activeRoom, storageData, onOpenUploadModal
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <h1 className="room-title">{activeRoom.name}</h1>
-              <span className="room-id-badge">ID: #{activeRoom.id}</span>
+              <span
+                className={`room-id-badge font-mono ${copied ? 'copied' : ''}`}
+                onClick={handleCopyRoomId}
+                title={copied ? 'Copied to clipboard!' : 'Click to copy Room ID'}
+              >
+                <span>ID: #{activeRoom.id}</span>
+                {copied ? <Check size={12} /> : <Copy size={12} />}
+              </span>
             </div>
             <div className="storage-metrics">
               <span className="storage-used-val">{formatBytes(totalUsed)}</span>

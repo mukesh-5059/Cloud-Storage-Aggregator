@@ -238,6 +238,26 @@
   -webkit-user-select: none;
 }
 
+.file-table th.sortable-th {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.file-table th.sortable-th:hover {
+  color: var(--emerald-primary);
+}
+
+.file-table th.sortable-th.active {
+  color: var(--emerald-primary);
+}
+
+.th-sort-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+
 .file-table td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border-subtle);

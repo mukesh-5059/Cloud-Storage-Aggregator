@@ -34,6 +34,24 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--transition-fast);
+}
+
+.room-id-badge:hover {
+  background: var(--bg-elevated);
+  border-color: var(--emerald-primary);
+  color: var(--emerald-primary);
+}
+
+.room-id-badge.copied {
+  background: var(--emerald-bg-tint);
+  border-color: var(--emerald-primary);
+  color: var(--emerald-primary);
 }
 
 .storage-metrics {

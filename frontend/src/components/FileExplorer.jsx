@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   FolderPlus, Search, LayoutList, LayoutGrid, Folder, FileText, Image as ImageIcon, 
   Video, Music, Archive, Eye, FolderInput, Info, Trash2, ChevronRight,
-  Download, ExternalLink, MousePointerClick, Edit2, RefreshCw
+  Download, ExternalLink, MousePointerClick, Edit2, RefreshCw,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from 'lucide-react';
 import { formatBytes, formatDate } from '../utils/formatters';
 
@@ -47,6 +48,10 @@ const FileExplorer = React.memo(function FileExplorer({
   const [selectedId, setSelectedId] = useState(null);
   const [localSearchInput, setLocalSearchInput] = useState(searchQuery || '');
 
+  // File Sorting State: default field 'created_at', default direction 'desc'
+  const [sortField, setSortField] = useState('created_at');
+  const [sortDirection, setSortDirection] = useState('desc');
+
   // Keep local search input in sync if parent resets searchQuery
   useEffect(() => {
     setLocalSearchInput(searchQuery || '');
@@ -65,6 +70,55 @@ const FileExplorer = React.memo(function FileExplorer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Handle Header Column Sorting Toggles
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      // Default directions when switching to a new column
+      if (field === 'name' || field === 'host_name' || field === 'uploader_name') {
+        setSortDirection('asc');
+      } else {
+        setSortDirection('desc');
+      }
+    }
+  };
+
+  // Rule: Folders ALWAYS listed on top of normal files, then sorted within their category
+  const sortedItems = useMemo(() => {
+    if (!items || items.length === 0) return [];
+
+    return [...items].sort((a, b) => {
+      // Rule 1: Folders always come before files
+      if (a.is_folder !== b.is_folder) {
+        return a.is_folder ? -1 : 1;
+      }
+
+      // Rule 2: Sort items within the same category (folders vs files)
+      let comparison = 0;
+      if (sortField === 'name') {
+        comparison = (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortField === 'host_name') {
+        const valA = a.is_folder ? '' : (a.host_name || '');
+        const valB = b.is_folder ? '' : (b.host_name || '');
+        comparison = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortField === 'uploader_name') {
+        const valA = a.uploader_name || '';
+        const valB = b.uploader_name || '';
+        comparison = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortField === 'size_bytes') {
+        comparison = (a.size_bytes || 0) - (b.size_bytes || 0);
+      } else if (sortField === 'created_at') {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : (a.id || 0);
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : (b.id || 0);
+        comparison = timeA - timeB;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [items, sortField, sortDirection]);
+
   const selectedItem = items ? items.find(i => i.id === selectedId) : null;
 
   const handleRowClick = (item) => {
@@ -82,6 +136,17 @@ const FileExplorer = React.memo(function FileExplorer({
     } else {
       onOpenPreview(item);
     }
+  };
+
+  const renderSortIcon = (field) => {
+    if (sortField !== field) {
+      return <ArrowUpDown size={13} style={{ opacity: 0.35, marginLeft: 4 }} />;
+    }
+    return sortDirection === 'asc' ? (
+      <ArrowUp size={13} style={{ color: 'var(--emerald-primary)', marginLeft: 4 }} />
+    ) : (
+      <ArrowDown size={13} style={{ color: 'var(--emerald-primary)', marginLeft: 4 }} />
+    );
   };
 
   return (
@@ -152,7 +217,7 @@ const FileExplorer = React.memo(function FileExplorer({
         </div>
       </div>
 
-      {/* Selected Item Action Bar (Reserved Height layout container) */}
+      {/* Selected Item Action Bar */}
       <div className={`selection-action-bar ${selectedItem ? 'active' : 'empty'}`}>
         {selectedItem ? (
           <>
@@ -243,7 +308,7 @@ const FileExplorer = React.memo(function FileExplorer({
             <RefreshCw className="animate-spin" size={28} color="var(--emerald-primary)" />
             <p className="explorer-empty-title">Loading folder items...</p>
           </div>
-        ) : (!items || items.length === 0) ? (
+        ) : (!sortedItems || sortedItems.length === 0) ? (
           <div className="explorer-empty-state">
             <Folder size={48} className="explorer-empty-icon" />
             <p className="explorer-empty-title">This folder is empty</p>
@@ -253,7 +318,7 @@ const FileExplorer = React.memo(function FileExplorer({
           </div>
         ) : viewMode === 'grid' ? (
           <div className="file-grid">
-            {items.map((item) => {
+            {sortedItems.map((item) => {
               const isSelected = item.id === selectedId;
               return (
                 <div
@@ -284,15 +349,60 @@ const FileExplorer = React.memo(function FileExplorer({
           <table className="file-table">
             <thead>
               <tr>
-                <th style={{ width: '40%' }}>NAME</th>
-                <th style={{ width: '15%' }}>HOSTED BY</th>
-                <th style={{ width: '15%' }}>UPLOADED BY</th>
-                <th style={{ width: '12%' }}>SIZE</th>
-                <th style={{ width: '18%' }}>UPLOAD DATE</th>
+                <th
+                  className={`sortable-th ${sortField === 'name' ? 'active' : ''}`}
+                  onClick={() => handleSort('name')}
+                  style={{ width: '36%' }}
+                >
+                  <div className="th-sort-content">
+                    <span>NAME</span>
+                    {renderSortIcon('name')}
+                  </div>
+                </th>
+                <th
+                  className={`sortable-th ${sortField === 'host_name' ? 'active' : ''}`}
+                  onClick={() => handleSort('host_name')}
+                  style={{ width: '17%' }}
+                >
+                  <div className="th-sort-content">
+                    <span>HOSTED BY</span>
+                    {renderSortIcon('host_name')}
+                  </div>
+                </th>
+                <th
+                  className={`sortable-th ${sortField === 'uploader_name' ? 'active' : ''}`}
+                  onClick={() => handleSort('uploader_name')}
+                  style={{ width: '17%' }}
+                >
+                  <div className="th-sort-content">
+                    <span>UPLOADED BY</span>
+                    {renderSortIcon('uploader_name')}
+                  </div>
+                </th>
+                <th
+                  className={`sortable-th ${sortField === 'size_bytes' ? 'active' : ''}`}
+                  onClick={() => handleSort('size_bytes')}
+                  style={{ width: '12%' }}
+                >
+                  <div className="th-sort-content">
+                    <span>SIZE</span>
+                    {renderSortIcon('size_bytes')}
+                  </div>
+                </th>
+                <th
+                  className={`sortable-th ${sortField === 'created_at' ? 'active' : ''}`}
+                  onClick={() => handleSort('created_at')}
+                  style={{ width: '18%' }}
+                >
+                  <div className="th-sort-content">
+                    <span>UPLOAD DATE</span>
+                    {renderSortIcon('created_at')}
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => {
+              {sortedItems.map((item) => {
                 const isSelected = item.id === selectedId;
                 return (
                   <tr
