@@ -54,7 +54,7 @@ async def get_fresh_google_access_token(user: User, db: Session, force_refresh: 
 
     return user.google_access_token if not force_refresh else None
 
-async def create_room_folder(access_token: str, folder_name: str) -> str:
+async def create_room_folder(access_token: str, folder_name: str, user: Optional[User] = None, db: Optional[Session] = None) -> str:
     """Creates a physical folder in Google Drive and returns its ID."""
     folder_metadata = {
         "name": folder_name,
@@ -70,6 +70,16 @@ async def create_room_folder(access_token: str, folder_name: str) -> str:
         headers=headers,
         json=folder_metadata
     )
+    if res.status_code == 401 and user and db:
+        logger.info(f"create_room_folder received 401. Refreshing token for User ID {user.id}...")
+        fresh_token = await get_fresh_google_access_token(user, db, force_refresh=True)
+        if fresh_token:
+            headers["Authorization"] = f"Bearer {fresh_token}"
+            res = await client.post(
+                "https://www.googleapis.com/drive/v3/files",
+                headers=headers,
+                json=folder_metadata
+            )
     if res.status_code == 200:
         return res.json().get("id", "")
     else:
@@ -110,17 +120,23 @@ async def set_file_permission_background(gdrive_file_id: str, storage_user_id: i
     finally:
         db.close()
 
-async def download_file_content(access_token: str, gdrive_file_id: str) -> Optional[bytes]:
+async def download_file_content(access_token: str, gdrive_file_id: str, user: Optional[User] = None, db: Optional[Session] = None) -> Optional[bytes]:
     """Downloads raw file bytes from Google Drive API."""
     url = f"https://www.googleapis.com/drive/v3/files/{gdrive_file_id}?alt=media"
     headers = {"Authorization": f"Bearer {access_token}"}
     client = get_client()
     res = await client.get(url, headers=headers)
+    if res.status_code == 401 and user and db:
+        logger.info(f"download_file_content received 401. Refreshing token for User ID {user.id}...")
+        fresh_token = await get_fresh_google_access_token(user, db, force_refresh=True)
+        if fresh_token:
+            headers["Authorization"] = f"Bearer {fresh_token}"
+            res = await client.get(url, headers=headers)
     if res.status_code == 200:
         return res.content
     return None
 
-async def upload_file_multipart(access_token: str, metadata: dict, file_name: str, content: bytes, mime_type: str) -> Optional[str]:
+async def upload_file_multipart(access_token: str, metadata: dict, file_name: str, content: bytes, mime_type: str, user: Optional[User] = None, db: Optional[Session] = None) -> Optional[str]:
     """Uploads file content using Google Drive multipart upload API and returns new file ID."""
     url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -130,27 +146,47 @@ async def upload_file_multipart(access_token: str, metadata: dict, file_name: st
     }
     client = get_client()
     res = await client.post(url, headers=headers, files=files_payload)
+    if res.status_code == 401 and user and db:
+        logger.info(f"upload_file_multipart received 401. Refreshing token for User ID {user.id}...")
+        fresh_token = await get_fresh_google_access_token(user, db, force_refresh=True)
+        if fresh_token:
+            headers["Authorization"] = f"Bearer {fresh_token}"
+            res = await client.post(url, headers=headers, files=files_payload)
     if res.status_code == 200:
         return res.json().get("id")
     return None
 
-async def copy_file(target_access_token: str, source_file_id: str, metadata: dict) -> Optional[str]:
+async def copy_file(target_access_token: str, source_file_id: str, metadata: dict, user: Optional[User] = None, db: Optional[Session] = None) -> Optional[str]:
     """Clones a Google Drive file server-side to a new owner/folder using Google Drive API."""
     url = f"https://www.googleapis.com/drive/v3/files/{source_file_id}/copy"
     headers = {"Authorization": f"Bearer {target_access_token}", "Content-Type": "application/json"}
     client = get_client()
     res = await client.post(url, headers=headers, json=metadata)
+    if res.status_code == 401 and user and db:
+        logger.info(f"copy_file received 401. Refreshing token for User ID {user.id}...")
+        fresh_token = await get_fresh_google_access_token(user, db, force_refresh=True)
+        if fresh_token:
+            headers["Authorization"] = f"Bearer {fresh_token}"
+            res = await client.post(url, headers=headers, json=metadata)
     if res.status_code == 200:
         return res.json().get("id")
     return None
 
-async def delete_file(access_token: str, gdrive_file_id: str) -> bool:
-    """Deletes a file from Google Drive."""
+
+async def delete_file(access_token: str, gdrive_file_id: str, user: Optional[User] = None, db: Optional[Session] = None) -> bool:
+    """Deletes a file from Google Drive with automatic token refresh on 401 Unauthorized."""
     url = f"https://www.googleapis.com/drive/v3/files/{gdrive_file_id}"
     headers = {"Authorization": f"Bearer {access_token}"}
     client = get_client()
     res = await client.delete(url, headers=headers)
+    if res.status_code == 401 and user and db:
+        logger.info(f"Received 401 Unauthorized from Drive for file {gdrive_file_id}. Refreshing token for User ID {user.id}...")
+        fresh_token = await get_fresh_google_access_token(user, db, force_refresh=True)
+        if fresh_token:
+            headers["Authorization"] = f"Bearer {fresh_token}"
+            res = await client.delete(url, headers=headers)
     return res.status_code in (200, 204)
+
 
 async def revoke_oauth_token(token: str) -> bool:
     """Revokes a Google OAuth access or refresh token."""

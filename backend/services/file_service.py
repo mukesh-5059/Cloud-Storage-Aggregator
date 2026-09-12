@@ -340,9 +340,10 @@ async def _delete_item_recursively(item: FileItem, db: Session):
             access_token = await gdrive_service.get_fresh_google_access_token(storage_user, db) if storage_user else None
             if access_token:
                 try:
-                    await gdrive_service.delete_file(access_token, item.gdrive_file_id)
+                    await gdrive_service.delete_file(access_token, item.gdrive_file_id, user=storage_user, db=db)
                 except Exception as e:
                     logger.warning(f"Failed to delete file {item.gdrive_file_id} from Google Drive: {e}")
+
 
         if item.storage_user_id:
             membership = db.query(UserRoom).filter(

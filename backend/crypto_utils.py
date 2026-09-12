@@ -26,7 +26,8 @@ def encrypt_token(plain_text: str | None) -> str | None:
         return _fernet.encrypt(plain_text.encode("utf-8")).decode("utf-8")
     except Exception as e:
         logger.error(f"Failed to encrypt token: {e}")
-        return plain_text
+        raise ValueError(f"Encryption failed: {e}")
+
 
 from sqlalchemy import TypeDecorator, String
 

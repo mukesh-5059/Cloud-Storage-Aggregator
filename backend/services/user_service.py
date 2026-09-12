@@ -180,7 +180,7 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
                                     # 3. Fire-and-forget background permission setting (non-blocking)
                                     asyncio.create_task(gdrive_service.set_file_permission(target_access_token, new_gdrive_id))
                                     # 4. Delete old file from deleting user's Drive
-                                    await gdrive_service.delete_file(user_access_token, item.gdrive_file_id)
+                                    await gdrive_service.delete_file(user_access_token, item.gdrive_file_id, user=current_user, db=db)
                                     logger.info(f"Physically migrated file '{item.name}' from User {current_user.id} to User {target_user.id}")
                             except Exception as e:
                                 logger.error(f"Failed physical Drive migration for file {item.id}: {e}")
@@ -197,7 +197,7 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
             else:
                 if user_access_token and file_item.gdrive_file_id:
                     try:
-                        await gdrive_service.delete_file(user_access_token, file_item.gdrive_file_id)
+                        await gdrive_service.delete_file(user_access_token, file_item.gdrive_file_id, user=current_user, db=db)
                     except Exception as e:
                         logger.warning(f"Could not delete cascaded file from Drive: {e}")
                 db.delete(file_item)
@@ -209,9 +209,10 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
 
         if user_access_token and membership.gdrive_folder_id:
             try:
-                await gdrive_service.delete_file(user_access_token, membership.gdrive_folder_id)
+                await gdrive_service.delete_file(user_access_token, membership.gdrive_folder_id, user=current_user, db=db)
             except Exception as e:
                 logger.warning(f"Could not delete contribution folder {membership.gdrive_folder_id}: {e}")
+
 
     token_to_revoke = current_user.google_refresh_token or current_user.google_access_token
     if token_to_revoke:
