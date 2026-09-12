@@ -4,25 +4,7 @@ import {
   Video, Music, Archive, Eye, FolderInput, Info, Trash2, ChevronRight,
   Download, ExternalLink, MousePointerClick, Edit2, RefreshCw
 } from 'lucide-react';
-
-function formatBytes(bytes, decimals = 1) {
-  if (bytes === 0 || !bytes) return '—';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
-
-function formatDate(dateString) {
-  if (!dateString) return '—';
-  try {
-    const d = new Date(dateString);
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  } catch (e) {
-    return dateString;
-  }
-}
+import { formatBytes, formatDate } from '../utils/formatters';
 
 function getFileIcon(item) {
   if (item.is_folder) return <Folder size={18} className="file-icon folder" />;
@@ -45,6 +27,7 @@ function getFileIcon(item) {
 }
 
 const FileExplorer = React.memo(function FileExplorer({
+  activeRoomId,
   items,
   breadcrumbs,
   onNavigateBreadcrumb,
@@ -125,10 +108,12 @@ const FileExplorer = React.memo(function FileExplorer({
 
         {/* Toolbar Controls */}
         <div className="toolbar-controls">
-          <button className="btn-slate" onClick={onOpenNewFolderModal}>
-            <FolderPlus size={16} />
-            <span>New Folder</span>
-          </button>
+          {activeRoomId && (
+            <button className="btn-slate" onClick={onOpenNewFolderModal}>
+              <FolderPlus size={16} />
+              <span>New Folder</span>
+            </button>
+          )}
 
           <div className="search-input-wrapper">
             <Search size={16} />

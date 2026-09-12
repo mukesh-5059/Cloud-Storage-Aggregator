@@ -1447,6 +1447,13 @@ input, textarea {
     align-items: center;
     justify-content: center;
   }
+
+  .toast-banner {
+    bottom: 76px;
+    left: 16px;
+    right: 16px;
+    justify-content: center;
+  }
 }
 
 /* Extra Small Screens (< 480px) */

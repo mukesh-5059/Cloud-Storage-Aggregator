@@ -570,6 +570,7 @@ export default function App() {
         />
 
         <FileExplorer
+          activeRoomId={activeRoomId}
           items={fileItems}
           breadcrumbs={breadcrumbs}
           onNavigateBreadcrumb={handleNavigateBreadcrumb}

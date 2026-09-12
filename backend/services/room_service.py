@@ -27,8 +27,9 @@ def verify_room_password(plain_password: str, hashed_password: str) -> bool:
     try:
         pwd_bytes = plain_password.encode('utf-8')[:72]
         return bcrypt.checkpw(pwd_bytes, hashed_password.encode('utf-8'))
-    except Exception:
-        return plain_password == hashed_password
+    except Exception as e:
+        logger.warning(f"Password verification exception: {e}")
+        return False
 
 def create_room(db: Session, name: str, password: str, owner_id: int) -> Room:
     hashed_pwd = hash_room_password(password)

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import datetime
 
@@ -57,7 +57,7 @@ class RoomResponse(BaseModel):
         from_attributes = True
 
 class StorageContributeRequest(BaseModel):
-    allocated_bytes: int
+    allocated_bytes: int = Field(..., ge=0, description="Allocated storage bytes must be non-negative")
 
 class ContributionResponse(BaseModel):
     room_id: int
