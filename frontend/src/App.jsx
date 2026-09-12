@@ -18,6 +18,8 @@ import UploadFileModal from './components/modals/UploadFileModal';
 import DeleteAccountModal from './components/modals/DeleteAccountModal';
 import RenameItemModal from './components/modals/RenameItemModal';
 import ConfirmDeleteModal from './components/modals/ConfirmDeleteModal';
+import { useModalState } from './hooks/useModalState';
+import { useToast } from './hooks/useToast';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || `http://${window.location.hostname}:8000`;
 const GOOGLE_CLIENT_ID = '338846147570-nqc50noev8fn4ma36hrpgaltq7jr43k4.apps.googleusercontent.com';
@@ -27,7 +29,27 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userNameInput, setUserNameInput] = useState('');
   const [error, setError] = useState(null);
-  const [toastMessage, setToastMessage] = useState(null);
+  const { toastMessage, showToast, clearToast } = useToast();
+  const {
+    isCreateJoinModalOpen, setIsCreateJoinModalOpen,
+    isAllocateModalOpen, setIsAllocateModalOpen,
+    isProfileModalOpen, setIsProfileModalOpen,
+    isDeleteAccountModalOpen, setIsDeleteAccountModalOpen,
+    isUploadModalOpen, setIsUploadModalOpen,
+    isNewFolderModalOpen, setIsNewFolderModalOpen,
+    isMoveModalOpen, setIsMoveModalOpen,
+    isRenameModalOpen, setIsRenameModalOpen,
+    isPreviewModalOpen, setIsPreviewModalOpen,
+    isInfoDrawerOpen, setIsInfoDrawerOpen,
+    isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen,
+    isMobileMembersOpen, setIsMobileMembersOpen,
+    fileToMove, setFileToMove,
+    fileToRename, setFileToRename,
+    fileToPreview, setFileToPreview,
+    fileForInfo, setFileForInfo,
+    fileToDelete, setFileToDelete,
+    resetAllModals
+  } = useModalState();
 
   // Rooms & Dashboard State
   const [myRooms, setMyRooms] = useState([]);
@@ -42,46 +64,8 @@ export default function App() {
   const [fileItems, setFileItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modals & Panels State
-  const [isCreateJoinModalOpen, setIsCreateJoinModalOpen] = useState(false);
-  const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
-  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-  const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
-  const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
-  const [isMobileMembersOpen, setIsMobileMembersOpen] = useState(false);
-
-  // Selected file targets for modals
-  const [fileToMove, setFileToMove] = useState(null);
-  const [fileToRename, setFileToRename] = useState(null);
-  const [fileToPreview, setFileToPreview] = useState(null);
-  const [fileForInfo, setFileForInfo] = useState(null);
-  const [fileToDelete, setFileToDelete] = useState(null);
-
   // Global Screen-Wide Blocking Overlay State
   const [blockingOverlay, setBlockingOverlay] = useState(null); // { title?, message, subtext? }
-
-  const toastTimeoutRef = useRef(null);
-
-  const showToast = useCallback((msg, duration = 3500) => {
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-      toastTimeoutRef.current = null;
-    }
-    setToastMessage(msg);
-
-    if (duration > 0) {
-      toastTimeoutRef.current = setTimeout(() => {
-        setToastMessage(null);
-        toastTimeoutRef.current = null;
-      }, duration);
-    }
-  }, []);
 
   const handleDownloadFile = async (item) => {
     if (!item || item.is_folder) return;
@@ -129,46 +113,21 @@ export default function App() {
     setSearchQuery('');
     setUserNameInput('');
     setError(null);
-    setToastMessage(null);
     setBlockingOverlay(null);
-    setIsCreateJoinModalOpen(false);
-    setIsAllocateModalOpen(false);
-    setIsProfileModalOpen(false);
-    setIsDeleteAccountModalOpen(false);
-    setIsUploadModalOpen(false);
-    setIsNewFolderModalOpen(false);
-    setIsMoveModalOpen(false);
-    setIsRenameModalOpen(false);
-    setIsPreviewModalOpen(false);
-    setIsInfoDrawerOpen(false);
-    setIsConfirmDeleteModalOpen(false);
-    setFileToMove(null);
-    setFileToRename(null);
-    setFileToPreview(null);
-    setFileForInfo(null);
-    setFileToDelete(null);
-  }, []);
+    clearToast();
+    resetAllModals();
+  }, [clearToast, resetAllModals]);
 
   // Close modals on Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        setIsCreateJoinModalOpen(false);
-        setIsAllocateModalOpen(false);
-        setIsProfileModalOpen(false);
-        setIsDeleteAccountModalOpen(false);
-        setIsUploadModalOpen(false);
-        setIsNewFolderModalOpen(false);
-        setIsMoveModalOpen(false);
-        setIsRenameModalOpen(false);
-        setIsPreviewModalOpen(false);
-        setIsInfoDrawerOpen(false);
-        setIsConfirmDeleteModalOpen(false);
+        resetAllModals();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [resetAllModals]);
 
   // Fetch Current User Profile
   const fetchMyProfile = useCallback(async () => {

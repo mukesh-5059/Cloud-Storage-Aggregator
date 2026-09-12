@@ -1,14 +1,6 @@
 import React from 'react';
 import { X, AlertTriangle, Trash2, FileText, Folder } from 'lucide-react';
-
-function formatBytes(bytes, decimals = 1) {
-  if (bytes === 0 || !bytes) return '—';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
+import { formatBytes } from '../../utils/formatters';
 
 export default function ConfirmDeleteModal({ isOpen, onClose, item, onConfirmDelete }) {
   if (!isOpen || !item) return null;

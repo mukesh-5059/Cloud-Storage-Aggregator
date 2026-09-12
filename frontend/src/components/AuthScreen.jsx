@@ -5,50 +5,16 @@ export default function AuthScreen({ onGoogleAuth, userNameInput, setUserNameInp
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
 
   return (
-    <div style={{
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: 'var(--bg-app)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px'
-    }}>
-      <div style={{
-        backgroundColor: 'var(--bg-panel)',
-        border: '1px solid var(--border-medium)',
-        borderRadius: '16px',
-        width: '100%',
-        maxWidth: '440px',
-        padding: '36px 32px',
-        boxShadow: '0 24px 64px rgba(0, 0, 0, 0.7)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        textAlign: 'center',
-        gap: '20px'
-      }}>
+    <div className="auth-screen-wrapper">
+      <div className="auth-card-panel">
         {/* Brand Logo Badge */}
-        <div style={{
-          width: '64px',
-          height: '64px',
-          borderRadius: '16px',
-          backgroundColor: 'var(--emerald-bg-tint)',
-          border: '1px solid var(--border-emerald)',
-          color: 'var(--emerald-primary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 0 24px var(--emerald-glow)'
-        }}>
+        <div className="auth-logo-badge">
           <HardDrive size={32} />
         </div>
 
         <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
-            RoomVault
-          </h1>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.4 }}>
+          <h1 className="auth-title">RoomVault</h1>
+          <p className="auth-subtitle">
             Collaborative Google Drive storage pooling in secure, room-based workspaces.
           </p>
         </div>
@@ -72,16 +38,7 @@ export default function AuthScreen({ onGoogleAuth, userNameInput, setUserNameInp
         </div>
 
         {error && (
-          <div style={{
-            padding: '10px 14px',
-            borderRadius: '6px',
-            background: 'var(--red-bg-tint)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: 'var(--red-status)',
-            fontSize: '0.82rem',
-            width: '100%',
-            textAlign: 'left'
-          }}>
+          <div className="form-error-banner">
             {error}
           </div>
         )}
@@ -102,25 +59,9 @@ export default function AuthScreen({ onGoogleAuth, userNameInput, setUserNameInp
 
         {/* Google OAuth Button */}
         <button
+          className="auth-google-btn"
           onClick={() => onGoogleAuth(authMode)}
           disabled={isAuthenticating}
-          style={{
-            width: '100%',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-strong)',
-            color: 'var(--text-main)',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '12px',
-            cursor: isAuthenticating ? 'not-allowed' : 'pointer',
-            opacity: isAuthenticating ? 0.7 : 1,
-            transition: 'all var(--transition-fast)'
-          }}
         >
           {isAuthenticating ? (
             <>
