@@ -33,9 +33,11 @@ export default function FileInfoDrawer({ isOpen, onClose, file }) {
             ) : (
               <FileText size={32} color="var(--emerald-primary)" />
             )}
-            <div>
-              <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>{file.name}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }} className="font-mono">
+            <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={file.name}>
+                {file.name}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="font-mono">
                 {file.is_folder ? 'Directory Folder' : (file.mime_type || 'Unknown Type')}
               </div>
             </div>
@@ -47,14 +49,18 @@ export default function FileInfoDrawer({ isOpen, onClose, file }) {
               <span className="font-mono" style={{ color: 'var(--text-main)', fontWeight: 600 }}>{formatBytes(file.size_bytes)}</span>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><User size={16} /> Hosted On:</span>
-              <span style={{ color: 'var(--emerald-primary)', fontWeight: 500 }}>{file.is_folder ? '—' : (file.host_name || `User #${file.storage_user_id}`)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', gap: '8px' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}><User size={16} /> Hosted On:</span>
+              <span style={{ color: 'var(--emerald-primary)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={file.host_name || ''}>
+                {file.is_folder ? '—' : (file.host_name || `User #${file.storage_user_id}`)}
+              </span>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><User size={16} /> Uploaded By:</span>
-              <span style={{ color: 'var(--text-main)' }}>{file.uploader_name || `User #${file.uploader_id}`}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', gap: '8px' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}><User size={16} /> Uploaded By:</span>
+              <span style={{ color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={file.uploader_name || ''}>
+                {file.uploader_name || `User #${file.uploader_id}`}
+              </span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>

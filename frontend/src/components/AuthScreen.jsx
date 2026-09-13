@@ -13,7 +13,7 @@ export default function AuthScreen({ onGoogleAuth, userNameInput, setUserNameInp
         </div>
 
         <div>
-          <h1 className="auth-title">RoomVault</h1>
+          <h1 className="auth-title">GatherAround</h1>
           <p className="auth-subtitle">
             Collaborative Google Drive storage pooling in secure, room-based workspaces.
           </p>

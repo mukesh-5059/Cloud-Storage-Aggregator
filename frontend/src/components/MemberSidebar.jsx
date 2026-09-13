@@ -40,15 +40,15 @@ export default function MemberSidebar({ members, loading, roomOwnerId, currentUs
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div className="member-info">
                   <div className="member-name">
-                    <span>{member.name}</span>
+                    <span title={member.name}>{member.name}</span>
                     {isYou && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>(You)</span>}
                     {isOwner && (
-                      <span className="owner-badge">
+                      <span className="owner-badge" title="Room Owner">
                         <Crown size={12} /> Owner
                       </span>
                     )}
                   </div>
-                  <div className="member-id-tag font-mono">
+                  <div className="member-id-tag font-mono" title={`User ID: #${member.id}`}>
                     ID: #{member.id} • {formatBytes(member.allocated_bytes || 0)} Contributed
                   </div>
                 </div>
@@ -56,10 +56,10 @@ export default function MemberSidebar({ members, loading, roomOwnerId, currentUs
 
               {/* Expanded Inline Member Profile Details */}
               {isExpanded && (
-                <div className="member-details-drawer">
+                <div className="member-details-drawer" onClick={(e) => e.stopPropagation()}>
                   <div className="member-detail-row">
                     <span className="member-detail-label">Email:</span>
-                    <span className="member-detail-val">{member.email}</span>
+                    <span className="member-detail-val" title={member.email}>{member.email}</span>
                   </div>
 
                   <div className="member-detail-row">

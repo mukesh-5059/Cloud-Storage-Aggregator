@@ -24,6 +24,8 @@
   gap: 6px;
   font-size: 0.85rem;
   color: var(--text-secondary);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .breadcrumb-item {
@@ -33,6 +35,12 @@
   transition: color var(--transition-fast);
   user-select: none;
   -webkit-user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .breadcrumb-item:hover {
@@ -43,11 +51,18 @@
 .breadcrumb-separator {
   color: var(--text-dim);
   font-size: 0.75rem;
+  flex-shrink: 0;
 }
 
 .breadcrumb-current {
   color: var(--text-main);
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 /* Toolbar Inputs & Controls */
@@ -264,6 +279,10 @@
   color: var(--text-secondary);
   user-select: none;
   -webkit-user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .file-row {
@@ -291,6 +310,15 @@
   gap: 10px;
   font-weight: 500;
   color: var(--text-main);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.file-name-cell span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
 }
 
 .file-icon {

@@ -45,10 +45,34 @@ export default function UserProfileModal({ isOpen, onClose, user, onLogout, onDe
               {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
 
-            <div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-main)' }}>{user.name}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Mail size={12} /> {user.email}
+            <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+              <div style={{
+                fontSize: '1.05rem',
+                fontWeight: 600,
+                color: 'var(--text-main)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }} title={user.name}>
+                {user.name}
+              </div>
+              <div style={{
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                minWidth: 0
+              }} title={user.email}>
+                <Mail size={12} style={{ flexShrink: 0 }} />
+                <span style={{
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: 'inline-block'
+                }}>
+                  {user.email}
+                </span>
               </div>
               <div className="font-mono" style={{ fontSize: '0.72rem', color: 'var(--emerald-primary)', marginTop: '2px' }}>
                 Main User ID: #{user.id}

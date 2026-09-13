@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 
 /**
- * Custom Hook for managing toast banner notifications in RoomVault.
+ * Custom Hook for managing toast banner notifications in GatherAround.
  */
 export function useToast() {
   const [toastMessage, setToastMessage] = useState(null);

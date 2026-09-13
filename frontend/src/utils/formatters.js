@@ -1,5 +1,5 @@
 /**
- * Centralized formatting utility functions for RoomVault frontend.
+ * Centralized formatting utility functions for GatherAround frontend.
  */
 
 export function formatBytes(bytes, decimals = 1) {

@@ -13,6 +13,8 @@ export default function AllocateStorageModal({ isOpen, onClose, activeRoom, curr
   const availableFreeBytes = Math.max(1 * 1024 * 1024 * 1024, userTotalLimitBytes - userUsageBytes);
   const maxAvailableGb = Math.max(1, Math.floor(availableFreeBytes / (1024 * 1024 * 1024)));
 
+  const sliderPercentage = maxAvailableGb > 1 ? ((allocatedGb - 1) / (maxAvailableGb - 1)) * 100 : 100;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -71,8 +73,8 @@ export default function AllocateStorageModal({ isOpen, onClose, activeRoom, curr
                   border: '1px solid var(--border-medium)',
                   borderRadius: '6px',
                   textAlign: 'center',
-                  width: '110px',
-                  padding: '4px'
+                  width: '90px',
+                  padding: '4px 8px'
                 }}
               />
               <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--emerald-primary)' }}>GB</span>
@@ -88,7 +90,10 @@ export default function AllocateStorageModal({ isOpen, onClose, activeRoom, curr
             max={maxAvailableGb}
             value={allocatedGb}
             onChange={(e) => setAllocatedGb(Number(e.target.value))}
-            style={{ width: '100%', accentColor: 'var(--emerald-primary)', cursor: 'pointer' }}
+            className="quota-slider"
+            style={{
+              background: `linear-gradient(to right, var(--emerald-primary) 0%, var(--emerald-primary) ${sliderPercentage}%, rgba(255, 255, 255, 0.45) ${sliderPercentage}%, rgba(255, 255, 255, 0.45) 100%)`
+            }}
           />
 
           <button
@@ -114,3 +119,5 @@ export default function AllocateStorageModal({ isOpen, onClose, activeRoom, curr
     </div>
   );
 }
+
+

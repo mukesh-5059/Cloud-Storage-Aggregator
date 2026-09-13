@@ -52,8 +52,8 @@ async def lifespan(app: FastAPI):
     await gdrive_service.http_client.aclose()
 
 app = FastAPI(
-    title="FastAPI Study Backend",
-    description="Backend API with Google OAuth, Custom JWT, and Private Rooms management",
+    title="GatherAround API",
+    description="GatherAround Backend API — Collaborative Google Drive Quota Aggregation",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -98,7 +98,7 @@ app.include_router(files.router)
 
 @app.get("/")
 def root():
-    return {"message": "FastAPI Study Backend API is running"}
+    return {"message": "GatherAround API is running"}
 
 @app.get("/healthz")
 def healthz():

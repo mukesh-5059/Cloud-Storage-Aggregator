@@ -5,7 +5,7 @@ export default function NavigationRail({ rooms, loading, activeRoomId, onSelectR
   return (
     <nav className="nav-rail" aria-label="Room Navigation">
       <div className="rail-room-list">
-        <div className="rail-brand-logo" title="RoomVault Cloud Storage">
+        <div className="rail-brand-logo" title="GatherAround Cloud Storage">
           <HardDrive size={22} />
         </div>
 

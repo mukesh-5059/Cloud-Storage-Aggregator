@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 
 /**
- * Custom Hook for managing all modal visibilities and target items in RoomVault.
+ * Custom Hook for managing all modal visibilities and target items in GatherAround.
  */
 export function useModalState() {
   const [isCreateJoinModalOpen, setIsCreateJoinModalOpen] = useState(false);

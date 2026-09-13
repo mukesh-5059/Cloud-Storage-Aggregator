@@ -18,6 +18,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1;
 }
 
 .room-title {
@@ -25,6 +27,10 @@
   font-weight: 600;
   color: var(--text-main);
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
 }
 
 .room-id-badge {
