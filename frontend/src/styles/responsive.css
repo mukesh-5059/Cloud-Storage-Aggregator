@@ -190,6 +190,9 @@
   }
 
   .breadcrumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
     overflow-x: auto;
     white-space: nowrap;
     width: 100%;

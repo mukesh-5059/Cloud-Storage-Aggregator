@@ -25,7 +25,16 @@
   font-size: 0.85rem;
   color: var(--text-secondary);
   min-width: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.breadcrumbs::-webkit-scrollbar {
+  display: none;
 }
 
 .breadcrumb-item {
@@ -36,11 +45,10 @@
   user-select: none;
   -webkit-user-select: none;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 140px;
-  display: inline-block;
-  vertical-align: middle;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  max-width: 200px;
 }
 
 .breadcrumb-item:hover {
@@ -58,11 +66,7 @@
   color: var(--text-main);
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-  display: inline-block;
-  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 /* Toolbar Inputs & Controls */
