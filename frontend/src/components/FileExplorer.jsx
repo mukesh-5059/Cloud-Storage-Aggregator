@@ -454,7 +454,14 @@ const FileExplorer = React.memo(function FileExplorer({
                     <td>
                       <div className="file-name-cell">
                         {getFileIcon(item)}
-                        <span>{formatFileName(item.name)}</span>
+                        <div className="file-name-text-wrapper">
+                          <span className="file-main-name">{formatFileName(item.name)}</span>
+                          {!item.is_folder && (
+                            <span className="file-sub-meta font-mono">
+                              {item.host_name || `User #${item.storage_user_id}`} • {formatBytes(item.size_bytes)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="font-mono" style={{ color: 'var(--text-secondary)' }}>

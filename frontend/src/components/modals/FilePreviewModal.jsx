@@ -69,19 +69,19 @@ export default function FilePreviewModal({
     <div className="preview-modal-overlay" onClick={onClose}>
       <div className="preview-header" onClick={(e) => e.stopPropagation()}>
         <div className="preview-title-wrap">
-          <FileText size={20} color="var(--emerald-primary)" />
-          <div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)' }}>{displayName}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }} className="font-mono">
+          <FileText size={20} color="var(--emerald-primary)" style={{ flexShrink: 0 }} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="preview-file-title" style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)' }}>{displayName}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }} className="font-mono preview-file-meta">
               Hosted by: {file.host_name || `User #${file.storage_user_id}`} • Uploaded by: {file.uploader_name || `User #${file.uploader_id}`}
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button className="btn-slate" onClick={handleDownload}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <button className="btn-slate" onClick={handleDownload} title="Download File" aria-label="Download File">
             <Download size={16} />
-            <span>Download</span>
+            <span className="btn-text-responsive">Download</span>
           </button>
 
           {file.gdrive_file_id && (
@@ -91,13 +91,15 @@ export default function FilePreviewModal({
               rel="noreferrer"
               className="btn-slate"
               style={{ textDecoration: 'none' }}
+              title="Open in Drive"
+              aria-label="Open in Drive"
             >
               <ExternalLink size={16} />
-              <span>Open in Drive</span>
+              <span className="btn-text-responsive">Open in Drive</span>
             </a>
           )}
 
-          <button className="close-btn" onClick={onClose}>
+          <button className="close-btn" onClick={onClose} title="Close Preview" aria-label="Close Preview">
             <X size={22} />
           </button>
         </div>

@@ -56,6 +56,7 @@
     border-top: 1px solid var(--border-medium);
     background-color: var(--bg-rail);
     z-index: 90;
+    overflow: hidden;
   }
 
   .rail-brand-logo {
@@ -70,6 +71,12 @@
     overflow-x: auto;
     padding: 2px 0;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .rail-room-list::-webkit-scrollbar {
+    display: none;
   }
 
   .rail-item {
@@ -188,6 +195,12 @@
     width: 100%;
     padding-bottom: 2px;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .breadcrumbs::-webkit-scrollbar {
+    display: none;
   }
 
   .toolbar-controls {
@@ -221,9 +234,13 @@
     padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* File Table Column Hiding for Mobile */
+  /* File Table Column Hiding for Mobile (Google Drive Mobile Style) */
+  .file-table th:nth-child(2),
+  .file-table td:nth-child(2),
   .file-table th:nth-child(3),
   .file-table td:nth-child(3),
+  .file-table th:nth-child(4),
+  .file-table td:nth-child(4),
   .file-table th:nth-child(5),
   .file-table td:nth-child(5) {
     display: none;
@@ -231,11 +248,22 @@
 
   .file-table th:nth-child(1),
   .file-table td:nth-child(1) {
-    width: 60%;
+    width: 90%;
+  }
+
+  .file-sub-meta {
+    display: block;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .file-name-cell span.file-main-name {
+    max-width: 100%;
   }
 
   .file-row td {
-    padding: 14px 10px;
+    padding: 12px 10px;
   }
 
   .modal-tab {

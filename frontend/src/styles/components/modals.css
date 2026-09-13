@@ -227,6 +227,18 @@ input[type="number"] {
   flex: 1;
 }
 
+.preview-file-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-file-meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .preview-body {
   flex: 1;
   display: flex;
@@ -289,7 +301,19 @@ input[type="number"] {
 
   .preview-header {
     padding: 10px 14px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .preview-header .btn-text-responsive {
+    display: none;
+  }
+
+  .preview-header .btn-slate {
+    padding: 8px;
+    min-width: 38px;
+    height: 38px;
+    justify-content: center;
   }
 
   .preview-body {

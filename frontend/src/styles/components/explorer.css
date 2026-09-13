@@ -318,11 +318,22 @@
   overflow: hidden;
 }
 
-.file-name-cell span {
+.file-name-cell span.file-main-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 280px;
+}
+
+.file-name-text-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.file-sub-meta {
+  display: none;
 }
 
 .file-icon {
