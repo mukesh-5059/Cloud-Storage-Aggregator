@@ -9,17 +9,35 @@ export function useFileSystem(appJwt, activeRoomId, activeRoom, showToast, fetch
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [blockingOverlay, setBlockingOverlay] = useState(null);
 
-  // Sync initial root breadcrumbs when activeRoom changes
+  // Reset folder navigation only when switching to a different room
   useEffect(() => {
-    if (activeRoom) {
-      setBreadcrumbs([{ id: null, name: activeRoom.name }]);
-      setCurrentFolderId(null);
-    } else {
+    setCurrentFolderId(null);
+  }, [activeRoomId]);
+
+  // Maintain root breadcrumb and update room name dynamically
+  useEffect(() => {
+    if (!activeRoomId) {
       setBreadcrumbs([]);
       setCurrentFolderId(null);
       setFileItems([]);
+      return;
     }
-  }, [activeRoom]);
+
+    const roomName = activeRoom?.name || 'Root';
+    setBreadcrumbs(prev => {
+      if (prev.length === 0) {
+        return [{ id: null, name: roomName }];
+      }
+      if (prev[0].name !== roomName) {
+        const updated = [...prev];
+        updated[0] = { ...updated[0], name: roomName };
+        return updated;
+      }
+      return prev;
+    });
+  }, [activeRoomId, activeRoom?.name]);
+
+
 
   // Fetch Files inside Current Folder or Search Results
   const fetchDirectoryFiles = useCallback(async () => {

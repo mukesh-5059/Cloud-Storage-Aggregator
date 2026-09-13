@@ -38,8 +38,8 @@ root_logger.handlers = [handler]
 
 logger = logging.getLogger("main")
 
-# Disable Uvicorn's default access logger to avoid redundant log lines
 logging.getLogger("uvicorn.access").disabled = True
+
 
 Base.metadata.create_all(bind=engine)
 

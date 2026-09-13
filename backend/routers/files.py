@@ -1,5 +1,6 @@
 import logging
 from fastapi import APIRouter, Depends, Query, Request, BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -66,7 +67,7 @@ async def complete_upload(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return await file_service.complete_file_upload(db, current_user, room_id, payload, background_tasks)
+    return await run_in_threadpool(file_service.complete_file_upload, db, current_user, room_id, payload, background_tasks)
 
 @router.get("/{file_id}/download")
 def download_file(
@@ -97,7 +98,9 @@ async def rename_file(
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: int,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return await file_service.delete_file_item(db, current_user.id, file_id)
+    return await run_in_threadpool(file_service.delete_file_item, db, current_user.id, file_id, background_tasks)
+

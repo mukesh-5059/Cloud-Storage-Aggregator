@@ -166,6 +166,14 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
             UserRoom.user_id != current_user.id
         ).all()
 
+        other_user_ids = {m.user_id for m in other_memberships}
+        target_users = {u.id: u for u in db.query(User).filter(User.id.in_(other_user_ids)).all()}
+        target_tokens = {}
+        for tu_id, tu in target_users.items():
+            tok = await gdrive_service.get_fresh_google_access_token(tu, db)
+            if tok:
+                target_tokens[tu_id] = tok
+
         migration_tasks = []
 
         for file_item in hosted_files:
@@ -174,58 +182,50 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
 
             target_host = None
             for m in other_memberships:
-                if (m.allocated_bytes - m.used_bytes) >= file_size:
+                if (m.allocated_bytes - m.used_bytes) >= file_size and m.user_id in target_tokens:
                     target_host = m
                     break
 
             if target_host:
                 target_host.used_bytes += file_size
                 target_host.files_hosted_count += 1
+                t_token = target_tokens[target_host.user_id]
+                t_folder_id = target_host.gdrive_folder_id
 
-                async def process_single_migration(item: FileItem, host: UserRoom):
+                async def process_single_migration(item: FileItem, target_uid: int, target_token: str, target_folder_id: Optional[str]):
                     async with semaphore:
-                        target_user = db.query(User).filter(User.id == host.user_id).first()
-                        if not target_user:
-                            raise RuntimeError(f"Target user ID {host.user_id} not found in database.")
-
-                        current_user_token = await gdrive_service.get_fresh_google_access_token(current_user, db)
-                        target_access_token = await gdrive_service.get_fresh_google_access_token(target_user, db)
-                        if not target_access_token or not current_user_token or not item.gdrive_file_id:
-                            raise RuntimeError(f"Missing Google Drive access token or file ID for file '{item.name}'.")
-
                         metadata = {
                             "name": item.name,
                             "mimeType": item.mime_type or "application/octet-stream"
                         }
-                        if host.gdrive_folder_id:
-                            metadata["parents"] = [host.gdrive_folder_id]
+                        if target_folder_id:
+                            metadata["parents"] = [target_folder_id]
 
                         content = await gdrive_service.download_file_content(
-                            current_user_token, item.gdrive_file_id, user=current_user, db=db
+                            user_access_token, item.gdrive_file_id
                         )
                         if not content:
                             raise RuntimeError(f"Failed to download file '{item.name}' from User {current_user.id}'s Drive.")
 
                         new_gdrive_id = await gdrive_service.upload_file_multipart(
-                            target_access_token, metadata, item.name, content, item.mime_type or "application/octet-stream", user=target_user, db=db
+                            target_token, metadata, item.name, content, item.mime_type or "application/octet-stream"
                         )
                         if not new_gdrive_id:
-                            raise RuntimeError(f"Failed to upload file '{item.name}' to User {target_user.id}'s Drive.")
+                            raise RuntimeError(f"Failed to upload file '{item.name}' to User {target_uid}'s Drive.")
 
-                        await gdrive_service.set_file_permission(target_access_token, new_gdrive_id)
-                        await gdrive_service.delete_file(current_user_token, item.gdrive_file_id, user=current_user, db=db)
+                        await gdrive_service.set_file_permission(target_token, new_gdrive_id)
+                        await gdrive_service.delete_file(user_access_token, item.gdrive_file_id)
 
-                        logger.info(f"Server-proxied file '{item.name}' ({len(content)} bytes) from User {current_user.id} to User {target_user.id} (New Drive ID: {new_gdrive_id})")
+                        logger.info(f"Server-proxied file '{item.name}' ({len(content)} bytes) from User {current_user.id} to User {target_uid} (New Drive ID: {new_gdrive_id})")
 
-                        item.storage_user_id = host.user_id
-                        item.gdrive_file_id = new_gdrive_id
+                        return item, target_uid, new_gdrive_id
 
-                migration_tasks.append(process_single_migration(file_item, target_host))
+                migration_tasks.append(process_single_migration(file_item, target_host.user_id, t_token, t_folder_id))
                 total_migrated += 1
             else:
                 if user_access_token and file_item.gdrive_file_id:
                     try:
-                        await gdrive_service.delete_file(user_access_token, file_item.gdrive_file_id, user=current_user, db=db)
+                        await gdrive_service.delete_file(user_access_token, file_item.gdrive_file_id)
                     except Exception as e:
                         logger.warning(f"Could not delete cascaded file from Drive: {e}")
                 db.delete(file_item)
@@ -233,7 +233,10 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
 
         if migration_tasks:
             try:
-                await asyncio.gather(*migration_tasks)
+                migration_results = await asyncio.gather(*migration_tasks)
+                for item, target_uid, new_gdrive_id in migration_results:
+                    item.storage_user_id = target_uid
+                    item.gdrive_file_id = new_gdrive_id
             except Exception as migration_err:
                 db.rollback()
                 logger.error(f"ABORTING account deletion for User {current_user.id}: Google Drive file migration failed ({migration_err}). DB rolled back.")
@@ -241,6 +244,7 @@ async def execute_account_deletion(db: Session, current_user: User) -> Dict[str,
                     status_code=500,
                     detail=f"Account deletion aborted because Google Drive file migration failed: {migration_err}. Account and files remain intact."
                 )
+
 
         db.commit()
 

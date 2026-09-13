@@ -230,7 +230,7 @@ async def process_upload_intent_batch(
 
     return UploadIntentBatchResponse(intents=list(results))
 
-async def complete_file_upload(
+def complete_file_upload(
     db: Session,
     current_user: User,
     room_id: int,
@@ -377,7 +377,12 @@ def _collect_items_recursively(item: FileItem, db: Session, collected: List[File
             _collect_items_recursively(child, db, collected)
     collected.append(item)
 
-async def delete_file_item(db: Session, user_id: int, file_id: int) -> dict:
+def delete_file_item(
+    db: Session,
+    user_id: int,
+    file_id: int,
+    background_tasks: Optional[BackgroundTasks] = None
+) -> dict:
     """Deletes a file or directory tree in parallel, freeing contributor quota."""
     root_item = db.query(FileItem).filter(FileItem.id == file_id).first()
     if not root_item:
@@ -414,8 +419,8 @@ async def delete_file_item(db: Session, user_id: int, file_id: int) -> dict:
 
     db.commit()
 
-    if file_info_list:
-        asyncio.create_task(gdrive_service.delete_gdrive_files_background(file_info_list))
+    if file_info_list and background_tasks:
+        background_tasks.add_task(gdrive_service.delete_gdrive_files_background, file_info_list)
 
     return {"message": "Item deleted successfully", "id": file_id}
 

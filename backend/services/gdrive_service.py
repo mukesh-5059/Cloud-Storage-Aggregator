@@ -136,11 +136,10 @@ async def delete_gdrive_files_background(file_info_list: list):
 
         async def delete_one(gdrive_id: str, storage_uid: int):
             async with semaphore:
-                u = users_map.get(storage_uid)
                 token = tokens_map.get(storage_uid)
                 if token:
                     try:
-                        await delete_file(token, gdrive_id, user=u, db=db)
+                        await delete_file(token, gdrive_id)
                     except Exception as e:
                         logger.warning(f"Background deletion failed for Drive file {gdrive_id}: {e}")
 

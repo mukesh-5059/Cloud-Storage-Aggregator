@@ -1,6 +1,7 @@
 import os
 import logging
-import config  # Ensures .env variables are loaded into os.environ
+import config
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.pool import QueuePool
 from sqlalchemy.ext.declarative import declarative_base
@@ -22,9 +23,10 @@ if db_url.startswith("postgresql://") or db_url.startswith("postgres://") or db_
         poolclass=QueuePool,
         pool_size=15,
         max_overflow=25,
-        pool_pre_ping=False,
+        pool_pre_ping=True,
         pool_recycle=60
     )
+
 else:
     local_url = db_url or "sqlite:///./app.db"
     logger.info(f"Connecting to local SQLite DB: {local_url}")

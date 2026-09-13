@@ -40,7 +40,8 @@ async def delete_my_account(
     return await user_service.execute_account_deletion(db, current_user)
 
 @router.get("/{user_id}", response_model=UserResponse)
-async def get_user_by_id(
+def get_user_by_id(
+
     user_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
