@@ -32,6 +32,21 @@ def check_membership(user_id: int, room_id: int, db: Session):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Not a room member")
     return membership
 
+def cleanup_orphaned_file_item(db: Session, item: FileItem):
+    """Deletes an orphaned FileItem from DB and reclaims contributor quota when cloud file is missing."""
+    if not item or item.is_folder:
+        return
+    if item.storage_user_id:
+        member = db.query(UserRoom).filter(
+            UserRoom.room_id == item.room_id,
+            UserRoom.user_id == item.storage_user_id
+        ).first()
+        if member:
+            member.used_bytes = max(0, member.used_bytes - item.size_bytes)
+            member.files_hosted_count = max(0, member.files_hosted_count - 1)
+    db.delete(item)
+    db.commit()
+
 def list_room_files(db: Session, user_id: int, room_id: int, parent_id: Optional[int]):
     """Retrieves file/folder items for a room directory."""
     check_membership(user_id, room_id, db)
@@ -201,12 +216,35 @@ async def process_upload_intent_batch(
             if gdrive_res.status_code == 401 and storage_user:
                 fresh_token = await gdrive_service.get_fresh_google_access_token(storage_user, db, force_refresh=True)
                 if fresh_token:
-                    headers["Authorization"] = f"Bearer {fresh_token}"
+                    access_token = fresh_token
+                    headers["Authorization"] = f"Bearer {access_token}"
                     gdrive_res = await client.post(
                         "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
                         headers=headers,
                         json=metadata
                     )
+
+            # Self-healing: If host contributor deleted their contribution folder in Google Drive (404/400 invalid parent)
+            if gdrive_res.status_code in (400, 404) and target_contrib.gdrive_folder_id and ("notFound" in gdrive_res.text or "File not found" in gdrive_res.text or "invalid" in gdrive_res.text.lower()):
+                logger.warning(f"Contribution folder {target_contrib.gdrive_folder_id} missing in Google Drive. Auto-recreating...")
+                try:
+                    new_folder_id = await gdrive_service.create_room_folder(
+                        access_token,
+                        f"GatherAround_Vault_Room_{room_id}",
+                        user=storage_user,
+                        db=db
+                    )
+                    if new_folder_id:
+                        target_contrib.gdrive_folder_id = new_folder_id
+                        db.commit()
+                        metadata["parents"] = [new_folder_id]
+                        gdrive_res = await client.post(
+                            "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+                            headers=headers,
+                            json=metadata
+                        )
+                except Exception as err:
+                    logger.error(f"Failed to auto-recreate missing contribution folder: {err}")
 
             if gdrive_res.status_code == 200 and "Location" in gdrive_res.headers:
                 return UploadIntentResponse(
@@ -284,8 +322,8 @@ def complete_file_upload(
     file_item.host_name = storage_user.name if storage_user else "Unknown"
     return file_item
 
-def get_file_download_url(db: Session, user_id: int, file_id: int) -> dict:
-    """Generates direct Google Drive download link for the frontend."""
+async def get_file_download_url(db: Session, user_id: int, file_id: int) -> dict:
+    """Generates direct Google Drive download link for the frontend, verifying cloud file existence."""
     item = db.query(FileItem).filter(FileItem.id == file_id).first()
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File item not found")
@@ -295,6 +333,20 @@ def get_file_download_url(db: Session, user_id: int, file_id: int) -> dict:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot download a folder")
     if not item.gdrive_file_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File has no Google Drive ID stored")
+
+    if item.storage_user_id:
+        storage_user = db.query(User).filter(User.id == item.storage_user_id).first()
+        if storage_user:
+            access_token = await gdrive_service.get_fresh_google_access_token(storage_user, db)
+            if access_token:
+                is_deleted = await gdrive_service.is_file_definitely_deleted(access_token, item.gdrive_file_id, user=storage_user, db=db)
+                if is_deleted:
+                    logger.warning(f"File {item.gdrive_file_id} confirmed deleted/trashed in Google Drive. Cleaning up orphaned DB record...")
+                    cleanup_orphaned_file_item(db, item)
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="File was removed from host Google Drive account; database record cleaned up."
+                    )
 
     direct_url = f"https://drive.google.com/uc?id={item.gdrive_file_id}&export=download"
     return {
@@ -354,11 +406,12 @@ async def rename_file_item(db: Session, user_id: int, file_id: int, payload: Fil
                 drive_url = f"https://www.googleapis.com/drive/v3/files/{item.gdrive_file_id}"
                 headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
                 gdrive_res = await client.patch(drive_url, headers=headers, json={"name": new_name})
-                if gdrive_res.status_code == 401 and storage_user:
-                    fresh_token = await gdrive_service.get_fresh_google_access_token(storage_user, db, force_refresh=True)
-                    if fresh_token:
-                        headers["Authorization"] = f"Bearer {fresh_token}"
-                        await client.patch(drive_url, headers=headers, json={"name": new_name})
+                if gdrive_res.status_code == 404:
+                    logger.warning(f"File {item.gdrive_file_id} missing in Google Drive during rename. Cleaning up orphaned DB record...")
+                    cleanup_orphaned_file_item(db, item)
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File was removed from Google Drive account; database record cleaned up.")
+            except HTTPException:
+                raise
             except Exception as e:
                 logger.warning(f"Error calling Google Drive API to rename file {item.gdrive_file_id}: {e}")
 

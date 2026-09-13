@@ -137,6 +137,13 @@ export default function AppModals({
         appJwt={appJwt}
         BACKEND_URL={BACKEND_URL}
         onDownloadFile={handleDownloadFile}
+        showToast={showToast}
+        onRefreshFiles={() => {
+          if (activeRoomId) {
+            fetchDirectoryFiles(activeRoomId, currentFolderId);
+            fetchRoomDashboard(activeRoomId);
+          }
+        }}
       />
 
       <FileInfoDrawer

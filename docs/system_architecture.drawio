@@ -1,0 +1,79 @@
+<mxfile host="65bd71144e">
+    <diagram id="gatheraround-system-architecture" name="System Architecture">
+        <mxGraphModel dx="1014" dy="1644" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="800" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="client" value="Client User" style="rounded=1;whiteSpace=wrap;html=1;fontStyle=1;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="-40" width="160" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_user_frontend" value="User Interactions" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;fontSize=11;fontColor=none;strokeColor=default;noLabel=1;labelBackgroundColor=none;strokeWidth=3;" parent="1" source="client" target="frontend" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="frontend" value="Frontend Application" style="rounded=1;whiteSpace=wrap;html=1;fontStyle=1;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="80" width="200" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="container_backend" value="Application Backend" style="swimlane;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=14;fontColor=#333333;startSize=30;horizontal=1;startSize=25;align=left;spacingLeft=10;rounded=1;swimlaneLine=0;strokeWidth=3;swimlaneFillColor=none;labelBackgroundColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="160" width="760" height="385" as="geometry"/>
+                </mxCell>
+                <mxCell id="auth_guard" value="Authentication Layer" style="rounded=1;whiteSpace=wrap;html=1;fontStyle=1;fontSize=14;strokeWidth=1;" parent="container_backend" vertex="1">
+                    <mxGeometry x="270" y="40" width="220" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_auth_router" value="Validated Requests" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;fontSize=13;fontColor=none;noLabel=1;labelBackgroundColor=none;strokeWidth=3;" parent="container_backend" source="auth_guard" target="api_router" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="api_router" value="REST API Router" style="rounded=1;whiteSpace=wrap;html=1;fontStyle=1;fontSize=12;" parent="container_backend" vertex="1">
+                    <mxGeometry x="270" y="115" width="220" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="container_services" value="Service Layer (Backend Logic)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;fontColor=#333333;startSize=25;align=left;spacingLeft=10;strokeWidth=3;rounded=1;" parent="container_backend" vertex="1">
+                    <mxGeometry x="20" y="190" width="720" height="135" as="geometry"/>
+                </mxCell>
+                <mxCell id="svc_user" value="User Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=default;strokeColor=default;fontStyle=1;fontSize=13;fontColor=default;" parent="container_services" vertex="1">
+                    <mxGeometry x="20" y="45" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="svc_room" value="Room Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=default;strokeColor=default;fontStyle=1;fontSize=13;fontColor=default;" parent="container_services" vertex="1">
+                    <mxGeometry x="195" y="45" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="svc_file" value="File Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=default;strokeColor=default;fontStyle=1;fontSize=13;fontColor=default;" parent="container_services" vertex="1">
+                    <mxGeometry x="370" y="45" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="svc_gdrive" value="GDrive Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=default;strokeColor=default;fontStyle=1;fontSize=13;fontColor=default;" parent="container_services" vertex="1">
+                    <mxGeometry x="545" y="45" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_router_user" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;" parent="container_backend" source="api_router" target="container_services" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="container_storage" value="Storage" style="swimlane;whiteSpace=wrap;html=1;fontStyle=1;fontSize=13;startSize=25;align=left;spacingLeft=10;rounded=1;fillColor=#FFFFFF;fontColor=#191919;swimlaneFillColor=none;swimlaneLine=0;strokeColor=#666666;strokeWidth=3;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="580" width="760" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="db_meta" value="Metadata Storage" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=default;strokeColor=default;fontStyle=1;fontSize=14;fontColor=default;rounded=1;" parent="container_storage" vertex="1">
+                    <mxGeometry x="70" y="40" width="200" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="db_file" value="File Storage Services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=default;strokeColor=default;fontStyle=1;fontSize=14;fontColor=default;" parent="container_storage" vertex="1">
+                    <mxGeometry x="460" y="50" width="230" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_gdrive_filestorage" value="API Calls &amp; File Streams" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;fontSize=10;fontColor=none;strokeColor=default;noLabel=1;labelBackgroundColor=none;strokeWidth=3;" parent="1" source="container_backend" target="db_file" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="450" y="663"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="2" value="API Calls &amp; File Streams" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;fontSize=10;fontColor=none;strokeColor=default;noLabel=1;labelBackgroundColor=none;strokeWidth=3;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="container_services" target="db_meta">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="460" y="555" as="sourcePoint"/>
+                        <mxPoint x="655" y="640" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="450" y="662"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="edge_frontend_auth" value="API Requests" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;fontSize=11;fontColor=none;strokeWidth=3;noLabel=1;labelBackgroundColor=none;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=default;" parent="1" source="frontend" target="auth_guard" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

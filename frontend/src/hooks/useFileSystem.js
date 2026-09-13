@@ -93,24 +93,32 @@ export function useFileSystem(appJwt, activeRoomId, activeRoom, showToast, fetch
         headers: { Authorization: `Bearer ${appJwt}` }
       });
       if (res.ok) {
-        if (res.redirected) {
-          window.open(res.url, '_blank');
-        } else {
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
+        const data = await res.json();
+        if (data && data.download_url) {
           const a = document.createElement('a');
-          a.href = url;
-          a.download = item.name;
+          a.href = data.download_url;
+          a.target = '_blank';
+          a.rel = 'noreferrer';
           document.body.appendChild(a);
           a.click();
           a.remove();
-          window.URL.revokeObjectURL(url);
+        } else {
+          if (showToast) showToast(`Could not obtain download link for "${item.name}"`, 4000);
         }
       } else {
         const err = await res.json().catch(() => ({}));
-        if (showToast) showToast(err.detail || `Failed to download "${item.name}"`, 4000);
+        if (res.status === 404) {
+          // Self-healing: Remove file from current state immediately & refresh directory/dashboard
+          setFileItems(prev => prev.filter(f => f.id !== item.id));
+          await fetchDirectoryFiles();
+          if (fetchRoomDashboard && activeRoomId) {
+            await fetchRoomDashboard(activeRoomId);
+          }
+        }
+        if (showToast) showToast(err.detail || `Failed to download "${item.name}"`, 4500);
       }
     } catch (err) {
+      console.error('Download error:', err);
       if (showToast) showToast(`Error downloading "${item.name}"`, 4000);
     }
   };

@@ -105,6 +105,9 @@ export default function MoveFileModal({
       } else {
         const err = await res.json();
         alert(err.detail || 'Failed to move item');
+        if (res.status === 404 && onMoveSuccess) {
+          onMoveSuccess(fileToMove);
+        }
       }
     } catch (err) {
       console.error(err);

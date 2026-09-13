@@ -71,6 +71,9 @@ export default function RenameItemModal({
       } else {
         const err = await res.json();
         setErrorMessage(err.detail || 'Failed to rename item');
+        if (res.status === 404 && onRenameSuccess) {
+          onRenameSuccess(fileItem);
+        }
       }
     } catch (err) {
       console.error(err);

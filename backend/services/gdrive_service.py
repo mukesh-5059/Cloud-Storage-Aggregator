@@ -195,7 +195,7 @@ async def delete_file(access_token: str, gdrive_file_id: str, user: Optional[Use
         if fresh_token:
             headers["Authorization"] = f"Bearer {fresh_token}"
             res = await client.delete(url, headers=headers)
-    return res.status_code in (200, 204)
+    return res.status_code in (200, 204, 404)
 
 async def revoke_oauth_token(token: str) -> bool:
     url = f"https://oauth2.googleapis.com/revoke?token={token}"
@@ -203,3 +203,28 @@ async def revoke_oauth_token(token: str) -> bool:
     client = get_client()
     res = await client.post(url, headers=headers)
     return res.status_code == 200
+
+async def is_file_definitely_deleted(access_token: str, gdrive_file_id: str, user: Optional[User] = None, db: Optional[Session] = None) -> bool:
+    """
+    Checks if a file is explicitly deleted (404) or trashed (trashed: true) in Google Drive.
+    Returns True ONLY if Google API explicitly confirms deletion. Returns False on 200, 403, 401, or errors.
+    """
+    url = f"https://www.googleapis.com/drive/v3/files/{gdrive_file_id}?fields=id,trashed"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    client = get_client()
+    try:
+        res = await client.get(url, headers=headers)
+        if res.status_code == 401 and user and db:
+            logger.info(f"is_file_definitely_deleted received 401. Refreshing token for User ID {user.id}...")
+            fresh_token = await get_fresh_google_access_token(user, db, force_refresh=True)
+            if fresh_token:
+                headers["Authorization"] = f"Bearer {fresh_token}"
+                res = await client.get(url, headers=headers)
+        if res.status_code == 404:
+            return True
+        if res.status_code == 200:
+            data = res.json()
+            return data.get("trashed", False) is True
+    except Exception as e:
+        logger.warning(f"Error checking cloud file deletion status for {gdrive_file_id}: {e}")
+    return False

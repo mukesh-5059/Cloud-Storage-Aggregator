@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 import NavigationRail from '../NavigationRail';
 import StorageHero from '../StorageHero';
 import FileExplorer from '../FileExplorer';
@@ -7,6 +7,7 @@ import MemberSidebar from '../MemberSidebar';
 
 export default function WorkspaceLayout({
   toastMessage,
+  clearToast,
   blockingOverlay,
   myRooms,
   activeRoomId,
@@ -55,11 +56,31 @@ export default function WorkspaceLayout({
     <div className="app-shell">
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="toast-banner">
+        <div className="toast-banner" style={{ cursor: 'pointer' }} onClick={clearToast}>
           {toastMessage.includes('Preparing & downloading') && (
             <RefreshCw className="animate-spin" size={16} color="var(--emerald-primary)" />
           )}
           <span>{toastMessage}</span>
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (clearToast) clearToast();
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              marginLeft: '8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: 0
+            }}
+            title="Dismiss notification"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 

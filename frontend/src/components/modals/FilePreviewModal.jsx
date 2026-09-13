@@ -1,8 +1,54 @@
-import React from 'react';
-import { X, Download, FileText, ExternalLink } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Download, FileText, ExternalLink, RefreshCw } from 'lucide-react';
 import { formatFileName } from '../../utils/formatters';
 
-export default function FilePreviewModal({ isOpen, onClose, file, appJwt, BACKEND_URL, onDownloadFile }) {
+export default function FilePreviewModal({
+  isOpen,
+  onClose,
+  file,
+  appJwt,
+  BACKEND_URL,
+  onDownloadFile,
+  showToast,
+  onRefreshFiles
+}) {
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState(null);
+
+  useEffect(() => {
+    if (isOpen && file && file.gdrive_file_id) {
+      let isMounted = true;
+      setIsVerifying(true);
+      setVerificationError(null);
+
+      fetch(`${BACKEND_URL}/files/${file.id}/download`, {
+        headers: { Authorization: `Bearer ${appJwt}` }
+      })
+        .then(async (res) => {
+          if (!isMounted) return;
+          if (res.status === 404) {
+            const data = await res.json().catch(() => ({}));
+            const msg = data.detail || 'File missing from Google Drive account; database record cleaned up.';
+            if (showToast) showToast(msg, 'error');
+            if (onRefreshFiles) onRefreshFiles();
+            onClose();
+          } else if (!res.ok) {
+            setVerificationError('Unable to verify cloud storage status');
+          }
+        })
+        .catch(() => {
+          if (isMounted) setVerificationError('Network error checking file availability');
+        })
+        .finally(() => {
+          if (isMounted) setIsVerifying(false);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [isOpen, file, appJwt, BACKEND_URL]);
+
   if (!isOpen || !file) return null;
 
   const displayName = formatFileName(file.name);
@@ -58,7 +104,12 @@ export default function FilePreviewModal({ isOpen, onClose, file, appJwt, BACKEN
       </div>
 
       <div className="preview-body" onClick={(e) => e.stopPropagation()}>
-        {embedUrl ? (
+        {isVerifying ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', color: 'var(--text-muted)' }}>
+            <RefreshCw className="animate-spin" size={32} color="var(--emerald-primary)" />
+            <span>Verifying cloud storage availability...</span>
+          </div>
+        ) : embedUrl ? (
           <iframe
             src={embedUrl}
             className="preview-iframe"

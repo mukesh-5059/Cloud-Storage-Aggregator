@@ -16,12 +16,23 @@ from services import user_service
 logger = logging.getLogger("users")
 router = APIRouter(prefix="/users", tags=["Users"])
 
-@router.get("/me", response_model=UserSelfResponse)
+@router.get(
+    "/me", 
+    response_model=UserSelfResponse,
+    summary="Get Current Authenticated User Profile",
+    description="Retrieves profile information, storage limits, and OAuth credentials for the current authenticated user."
+)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    """Retrieves current user's profile and storage usage metrics."""
     logger.info(f"User ID {current_user.id} ({current_user.email}) accessed profile /users/me")
     return current_user
 
-@router.get("/me/deletion-preview", response_model=AccountDeletionPreviewResponse)
+@router.get(
+    "/me/deletion-preview", 
+    response_model=AccountDeletionPreviewResponse,
+    summary="Preview Account Deletion & Multi-Room Cascades",
+    description="Simulates a dry-run account deletion preview showing migratable files, cascaded file deletions, and room ownership transfers before executing deletion."
+)
 async def get_account_deletion_preview(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -30,7 +41,11 @@ async def get_account_deletion_preview(
     logger.info(f"User ID {current_user.id} ({current_user.email}) requested account deletion preview")
     return await run_in_threadpool(user_service.simulate_deletion_bin_packing, db, current_user)
 
-@router.delete("/me")
+@router.delete(
+    "/me",
+    summary="Delete User Account & Cleanup Allocations",
+    description="Executes physical Google Drive file deletions, transfers file ownership where applicable, and permanently deletes user account metadata."
+)
 async def delete_my_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -39,13 +54,18 @@ async def delete_my_account(
     logger.info(f"Executing real account deletion for User ID {current_user.id} ({current_user.email})")
     return await user_service.execute_account_deletion(db, current_user)
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get(
+    "/{user_id}", 
+    response_model=UserResponse,
+    summary="Get Target User Profile by ID",
+    description="Retrieves basic profile metrics and storage contributions of a target user who shares at least one storage room with the requester."
+)
 def get_user_by_id(
-
     user_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """Retrieves public profile details for a co-member of a shared room."""
     logger.info(f"User ID {current_user.id} querying target User ID {user_id}")
     if user_id == current_user.id:
         return current_user

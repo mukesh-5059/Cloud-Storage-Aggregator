@@ -85,6 +85,7 @@ export default function App() {
     <>
       <WorkspaceLayout
         toastMessage={toastMessage}
+        clearToast={clearToast}
         blockingOverlay={blockingOverlay}
         myRooms={myRooms}
         activeRoomId={activeRoomId}

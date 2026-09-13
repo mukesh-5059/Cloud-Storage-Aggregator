@@ -14,12 +14,13 @@ export function useToast() {
     }
     setToastMessage(msg);
 
-    if (duration > 0) {
-      toastTimeoutRef.current = setTimeout(() => {
-        setToastMessage(null);
-        toastTimeoutRef.current = null;
-      }, duration);
-    }
+    // Sanitize duration argument: if non-number (e.g. 'error' or 'info'), default to 3500ms
+    const timeoutMs = (typeof duration === 'number' && duration > 0) ? duration : 3500;
+
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+      toastTimeoutRef.current = null;
+    }, timeoutMs);
   }, []);
 
   const clearToast = useCallback(() => {
