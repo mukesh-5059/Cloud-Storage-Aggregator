@@ -18,12 +18,37 @@ export default function UploadFileModal({
   const [currentFileProgress, setCurrentFileProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
   const [errorMessage, setErrorMessage] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const activeXhrRef = useRef(null);
   const uploadUrlRef = useRef(null);
   const abortRequestedRef = useRef(false);
 
   if (!isOpen) return null;
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!uploading) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (uploading) return;
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      setSelectedFiles(droppedFiles);
+      setErrorMessage(null);
+    }
+  };
 
   const handleTabChange = (type) => {
     if (uploading) return;
@@ -348,14 +373,17 @@ export default function UploadFileModal({
         <form onSubmit={handleStartBatchUpload} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Dropzone Selector */}
           <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
             style={{
-              border: '2px dashed var(--border-medium)',
+              border: isDragging ? '2px dashed var(--emerald-primary)' : '2px dashed var(--border-medium)',
               borderRadius: '10px',
               padding: '28px 20px',
               textAlign: 'center',
-              backgroundColor: 'var(--bg-surface)',
+              backgroundColor: isDragging ? 'rgba(16, 185, 129, 0.06)' : 'var(--bg-surface)',
               cursor: uploading ? 'not-allowed' : 'pointer',
-              transition: 'border-color var(--transition-fast)'
+              transition: 'all var(--transition-fast)'
             }}
             onClick={() => {
               if (uploading) return;

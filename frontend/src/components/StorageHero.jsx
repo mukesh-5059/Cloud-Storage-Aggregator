@@ -43,6 +43,12 @@ export default function StorageHero({ activeRoom, storageData, loading, onOpenUp
     }
   };
 
+  const getProgressColor = (pct) => {
+    if (pct >= 90) return '#ef4444'; // Red threshold (>90%)
+    if (pct >= 80) return '#f59e0b'; // Amber threshold (>80%)
+    return 'var(--emerald-primary)'; // Default Emerald
+  };
+
   return (
     <div className="storage-hero">
       <div className="storage-hero-top">
@@ -85,10 +91,19 @@ export default function StorageHero({ activeRoom, storageData, loading, onOpenUp
 
       <div className="storage-progress-container">
         <div className="storage-progress-track">
-          <div className="storage-progress-fill" style={{ width: `${usagePercentage}%` }} />
+          <div
+            className="storage-progress-fill"
+            style={{
+              width: `${usagePercentage}%`,
+              backgroundColor: getProgressColor(usagePercentage),
+              transition: 'width 0.4s ease, background-color 0.4s ease'
+            }}
+          />
         </div>
         <div className="storage-progress-subtext">
-          <span>{usagePercentage}% Capacity Used</span>
+          <span style={{ color: getProgressColor(usagePercentage), fontWeight: usagePercentage >= 80 ? 600 : 400 }}>
+            {usagePercentage}% Capacity Used
+          </span>
           <span>Available Space: {formatBytes(availableBytes)}</span>
         </div>
       </div>
