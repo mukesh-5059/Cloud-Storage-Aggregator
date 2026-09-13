@@ -21,8 +21,8 @@ if db_url.startswith("postgresql://") or db_url.startswith("postgres://") or db_
     engine = create_engine(
         clean_url,
         poolclass=QueuePool,
-        pool_size=15,
-        max_overflow=25,
+        pool_size=5,
+        max_overflow=10,
         pool_pre_ping=True,
         pool_recycle=60
     )
