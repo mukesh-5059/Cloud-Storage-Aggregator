@@ -114,6 +114,43 @@ async def set_file_permission_background(gdrive_file_id: str, storage_user_id: i
     finally:
         db.close()
 
+async def delete_gdrive_files_background(file_info_list: list):
+    """
+    Background task to physically delete Google Drive files without blocking HTTP response.
+    file_info_list contains tuples: (gdrive_file_id, storage_user_id)
+    """
+    if not file_info_list:
+        return
+    import asyncio
+    db = SessionLocal()
+    try:
+        user_ids = {suid for _, suid in file_info_list if suid}
+        users_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+        tokens_map = {}
+        for uid, u in users_map.items():
+            t = await get_fresh_google_access_token(u, db)
+            if t:
+                tokens_map[uid] = t
+
+        semaphore = asyncio.Semaphore(5)
+
+        async def delete_one(gdrive_id: str, storage_uid: int):
+            async with semaphore:
+                u = users_map.get(storage_uid)
+                token = tokens_map.get(storage_uid)
+                if token:
+                    try:
+                        await delete_file(token, gdrive_id, user=u, db=db)
+                    except Exception as e:
+                        logger.warning(f"Background deletion failed for Drive file {gdrive_id}: {e}")
+
+        await asyncio.gather(*[delete_one(gid, suid) for gid, suid in file_info_list])
+    except Exception as e:
+        logger.warning(f"Error in delete_gdrive_files_background: {e}")
+    finally:
+        db.close()
+
+
 async def download_file_content(access_token: str, gdrive_file_id: str, user: Optional[User] = None, db: Optional[Session] = None) -> Optional[bytes]:
     url = f"https://www.googleapis.com/drive/v3/files/{gdrive_file_id}?alt=media"
     headers = {"Authorization": f"Bearer {access_token}"}

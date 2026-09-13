@@ -136,12 +136,19 @@ async def process_upload_intent_batch(
     user_ids_needed = set()
 
     for item in payload.items:
+        # Prioritize contributors with the most remaining free storage space (Load-Balanced Bin Packing)
+        candidate_contribs = sorted(
+            contributors,
+            key=lambda c: contrib_free_bytes[c.user_id],
+            reverse=True
+        )
         target_contrib = None
-        for contrib in contributors:
+        for contrib in candidate_contribs:
             if contrib_free_bytes[contrib.user_id] >= item.size_bytes:
                 target_contrib = contrib
                 contrib_free_bytes[contrib.user_id] -= item.size_bytes
                 break
+
 
         if not target_contrib:
             raise HTTPException(
@@ -382,30 +389,7 @@ async def delete_file_item(db: Session, user_id: int, file_id: int) -> dict:
     _collect_items_recursively(root_item, db, items_to_delete)
 
     files_with_gdrive = [item for item in items_to_delete if not item.is_folder and item.storage_user_id and item.gdrive_file_id]
-
-    if files_with_gdrive:
-        user_ids = {item.storage_user_id for item in files_with_gdrive}
-        users_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
-        tokens_map = {}
-        for uid, u in users_map.items():
-            t = await gdrive_service.get_fresh_google_access_token(u, db)
-            if t:
-                tokens_map[uid] = t
-
-        semaphore = asyncio.Semaphore(5)
-
-        async def delete_single_gdrive_file(file_item: FileItem):
-            async with semaphore:
-                u = users_map.get(file_item.storage_user_id)
-                token = tokens_map.get(file_item.storage_user_id)
-                if token:
-                    try:
-                        await gdrive_service.delete_file(token, file_item.gdrive_file_id, user=u, db=db)
-                    except Exception as e:
-                        logger.warning(f"Failed to delete Google Drive file {file_item.gdrive_file_id}: {e}")
-
-        # Non-blocking background execution of physical Google Drive file deletions
-        asyncio.create_task(asyncio.gather(*[delete_single_gdrive_file(f) for f in files_with_gdrive]))
+    file_info_list = [(item.gdrive_file_id, item.storage_user_id) for item in files_with_gdrive]
 
     # Batch fetch UserRoom records to update quota
     storage_keys = {(item.room_id, item.storage_user_id) for item in items_to_delete if not item.is_folder and item.storage_user_id}
@@ -429,4 +413,9 @@ async def delete_file_item(db: Session, user_id: int, file_id: int) -> dict:
         db.delete(item)
 
     db.commit()
+
+    if file_info_list:
+        asyncio.create_task(gdrive_service.delete_gdrive_files_background(file_info_list))
+
     return {"message": "Item deleted successfully", "id": file_id}
+
