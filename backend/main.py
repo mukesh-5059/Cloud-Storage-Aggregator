@@ -99,3 +99,8 @@ app.include_router(files.router)
 @app.get("/")
 def root():
     return {"message": "FastAPI Study Backend API is running"}
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
