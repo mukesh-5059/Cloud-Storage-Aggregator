@@ -11,3 +11,9 @@ app.db
 __pycache__/
 node_modules/
 dist/
+
+# OS & Editor Files
+.DS_Store
+.vscode/
+.idea/
+*.log
