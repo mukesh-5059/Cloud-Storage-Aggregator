@@ -502,7 +502,7 @@ export default function UploadFileModal({
           )}
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
+          <div className="modal-footer">
             <button type="button" className="btn-slate" onClick={handleCancel}>
               {uploading ? 'Abort Batch' : 'Cancel'}
             </button>

@@ -94,9 +94,11 @@ export default function StorageHero({ activeRoom, storageData, loading, onOpenUp
           <div
             className="storage-progress-fill"
             style={{
-              width: `${usagePercentage}%`,
+              width: '100%',
+              transform: `scaleX(${Math.min(100, Math.max(0, usagePercentage)) / 100})`,
+              transformOrigin: 'left',
               backgroundColor: getProgressColor(usagePercentage),
-              transition: 'width 0.4s ease, background-color 0.4s ease'
+              transition: 'transform 0.4s ease, background-color 0.4s ease'
             }}
           />
         </div>

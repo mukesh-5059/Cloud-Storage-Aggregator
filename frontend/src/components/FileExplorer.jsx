@@ -3,9 +3,10 @@ import {
   FolderPlus, Search, LayoutList, LayoutGrid, Folder, FileText, Image as ImageIcon, 
   Video, Music, Archive, Eye, FolderInput, Info, Trash2, ChevronRight,
   Download, ExternalLink, MousePointerClick, Edit2, RefreshCw,
-  ArrowUp, ArrowDown, ArrowUpDown
+  ArrowUp, ArrowDown, ArrowUpDown, MoreVertical
 } from 'lucide-react';
-import { formatBytes, formatDate } from '../utils/formatters';
+import { formatBytes, formatDate, formatFileName } from '../utils/formatters';
+import MobileActionSheet from './modals/MobileActionSheet';
 
 function getFileIcon(item) {
   if (item.is_folder) return <Folder size={18} className="file-icon folder" />;
@@ -47,6 +48,8 @@ const FileExplorer = React.memo(function FileExplorer({
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
   const [selectedId, setSelectedId] = useState(null);
   const [localSearchInput, setLocalSearchInput] = useState(searchQuery || '');
+  const [actionSheetItem, setActionSheetItem] = useState(null);
+  const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
 
   // File Sorting State: default field 'created_at', default direction 'desc'
   const [sortField, setSortField] = useState('created_at');
@@ -122,6 +125,16 @@ const FileExplorer = React.memo(function FileExplorer({
   const selectedItem = items ? items.find(i => i.id === selectedId) : null;
 
   const handleRowClick = (item) => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      if (item.is_folder) {
+        setSelectedId(null);
+        onNavigateFolder(item);
+      } else {
+        onOpenPreview(item);
+      }
+      return;
+    }
+
     if (selectedId === item.id) {
       setSelectedId(null);
     } else {
@@ -164,7 +177,7 @@ const FileExplorer = React.memo(function FileExplorer({
                   className={`breadcrumb-item ${isLast ? 'breadcrumb-current' : ''}`}
                   onClick={() => onNavigateBreadcrumb(crumb, idx)}
                 >
-                  {crumb.name}
+                  {formatFileName(crumb.name)}
                 </span>
               </React.Fragment>
             );
@@ -186,7 +199,7 @@ const FileExplorer = React.memo(function FileExplorer({
               id="room-file-search"
               type="text"
               className="search-input"
-              placeholder="Search files (press Enter)..."
+              placeholder="Search files..."
               value={localSearchInput}
               onChange={(e) => {
                 const val = e.target.value;
@@ -222,7 +235,7 @@ const FileExplorer = React.memo(function FileExplorer({
         {selectedItem ? (
           <>
             <div className="selection-info">
-              <span>Selected: {selectedItem.name}</span>
+              <span>Selected: <strong>{formatFileName(selectedItem.name)}</strong></span>
             </div>
 
             <div className="selection-actions">
@@ -231,7 +244,7 @@ const FileExplorer = React.memo(function FileExplorer({
                 onClick={() => handleRowDoubleClick(selectedItem)}
               >
                 <Eye size={14} />
-                <span>{selectedItem.is_folder ? 'Open Folder' : 'Preview'}</span>
+                <span>{selectedItem.is_folder ? 'Open' : 'Preview'}</span>
               </button>
 
               {!selectedItem.is_folder && (
@@ -253,7 +266,7 @@ const FileExplorer = React.memo(function FileExplorer({
                   style={{ textDecoration: 'none' }}
                 >
                   <ExternalLink size={14} />
-                  <span>Open in Drive</span>
+                  <span>Drive</span>
                 </a>
               )}
 
@@ -342,11 +355,22 @@ const FileExplorer = React.memo(function FileExplorer({
                   onClick={() => handleRowClick(item)}
                   onDoubleClick={() => handleRowDoubleClick(item)}
                 >
+                  <button
+                    className="grid-menu-dots-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActionSheetItem(item);
+                      setIsActionSheetOpen(true);
+                    }}
+                    title="More Options"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
                   <div className="grid-card-icon">
                     {getFileIcon(item)}
                   </div>
-                  <div className="grid-card-name" title={item.name}>
-                    {item.name}
+                  <div className="grid-card-name" title={formatFileName(item.name)}>
+                    {formatFileName(item.name)}
                   </div>
                   <div className="grid-card-meta font-mono">
                     <span>{item.is_folder ? 'Folder' : formatBytes(item.size_bytes)}</span>
@@ -407,13 +431,14 @@ const FileExplorer = React.memo(function FileExplorer({
                 <th
                   className={`sortable-th ${sortField === 'created_at' ? 'active' : ''}`}
                   onClick={() => handleSort('created_at')}
-                  style={{ width: '18%' }}
+                  style={{ width: '14%' }}
                 >
                   <div className="th-sort-content">
                     <span>UPLOAD DATE</span>
                     {renderSortIcon('created_at')}
                   </div>
                 </th>
+                <th style={{ width: '4%' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -429,7 +454,7 @@ const FileExplorer = React.memo(function FileExplorer({
                     <td>
                       <div className="file-name-cell">
                         {getFileIcon(item)}
-                        <span>{item.name}</span>
+                        <span>{formatFileName(item.name)}</span>
                       </div>
                     </td>
                     <td className="font-mono" style={{ color: 'var(--text-secondary)' }}>
@@ -444,6 +469,19 @@ const FileExplorer = React.memo(function FileExplorer({
                     <td className="font-mono" style={{ fontSize: '0.78rem' }}>
                       {formatDate(item.created_at)}
                     </td>
+                    <td style={{ textAlign: 'right', paddingRight: '10px' }}>
+                      <button
+                        className="row-menu-dots-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActionSheetItem(item);
+                          setIsActionSheetOpen(true);
+                        }}
+                        title="More Options"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -451,6 +489,36 @@ const FileExplorer = React.memo(function FileExplorer({
           </table>
         )}
       </div>
+
+      {/* Mobile Google Drive Style Bottom Action Sheet */}
+      <MobileActionSheet
+        isOpen={isActionSheetOpen}
+        onClose={() => {
+          setIsActionSheetOpen(false);
+          setActionSheetItem(null);
+        }}
+        item={actionSheetItem}
+        onPreview={(item) => {
+          if (item.is_folder) {
+            onNavigateFolder(item);
+          } else {
+            onOpenPreview(item);
+          }
+        }}
+        onDownload={onDownloadFile}
+        onOpenDrive={(item) => {
+          if (item.gdrive_file_id) {
+            window.open(`https://drive.google.com/file/d/${item.gdrive_file_id}/view`, '_blank');
+          }
+        }}
+        onRename={onOpenRenameModal}
+        onMove={onOpenMoveModal}
+        onInfo={onOpenInfoDrawer}
+        onDelete={(item) => {
+          onDeleteFile(item);
+          setSelectedId(null);
+        }}
+      />
     </div>
   );
 });

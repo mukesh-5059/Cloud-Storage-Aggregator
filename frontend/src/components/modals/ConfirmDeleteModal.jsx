@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, AlertTriangle, Trash2, FileText, Folder } from 'lucide-react';
-import { formatBytes } from '../../utils/formatters';
+import { formatBytes, formatFileName } from '../../utils/formatters';
 
 export default function ConfirmDeleteModal({ isOpen, onClose, item, onConfirmDelete }) {
   if (!isOpen || !item) return null;
@@ -46,7 +46,7 @@ export default function ConfirmDeleteModal({ isOpen, onClose, item, onConfirmDel
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'
               }}>
-                {item.name}
+                {formatFileName(item.name)}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }} className="font-mono">
                 {item.is_folder ? 'Directory Folder' : formatBytes(item.size_bytes)}
@@ -59,7 +59,7 @@ export default function ConfirmDeleteModal({ isOpen, onClose, item, onConfirmDel
           </p>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px' }}>
+        <div className="modal-footer">
           <button className="btn-slate" onClick={onClose}>
             Cancel
           </button>

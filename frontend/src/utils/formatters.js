@@ -20,3 +20,35 @@ export function formatDate(dateString) {
     return dateString;
   }
 }
+
+/**
+ * Safely decodes percent-encoded filenames (e.g. primary%3APictures%2F... -> Pictures/...)
+ * and returns a clean, human-readable filename display string.
+ */
+export function formatFileName(rawName) {
+  if (!rawName) return '';
+  try {
+    let decoded = decodeURIComponent(rawName);
+    // If it contains path separators or storage prefixes like primary:
+    if (decoded.includes('/')) {
+      const parts = decoded.split('/').filter(Boolean);
+      decoded = parts[parts.length - 1];
+    } else if (decoded.includes('\\')) {
+      const parts = decoded.split('\\').filter(Boolean);
+      decoded = parts[parts.length - 1];
+    }
+    return decoded;
+  } catch (e) {
+    return rawName;
+  }
+}
+
+export function formatDecodedPath(rawPath) {
+  if (!rawPath) return '';
+  try {
+    return decodeURIComponent(rawPath);
+  } catch (e) {
+    return rawPath;
+  }
+}
+

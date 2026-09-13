@@ -106,8 +106,8 @@ export default function UserProfileModal({ isOpen, onClose, user, onLogout, onDe
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
-            <button className="btn-slate" onClick={onLogout} style={{ justifyContent: 'center' }}>
+          <div className="modal-footer" style={{ flexDirection: 'column', marginTop: '8px' }}>
+            <button className="btn-slate" onClick={onLogout} style={{ justifyContent: 'center', width: '100%' }}>
               <LogOut size={16} />
               <span>Log Out</span>
             </button>
@@ -115,7 +115,7 @@ export default function UserProfileModal({ isOpen, onClose, user, onLogout, onDe
             <button
               className="action-chip destructive"
               onClick={onDeleteAccount}
-              style={{ justifyContent: 'center', padding: '8px', borderRadius: '6px' }}
+              style={{ justifyContent: 'center', padding: '10px', borderRadius: '6px', width: '100%' }}
             >
               <Trash2 size={16} />
               <span>Delete My Account</span>

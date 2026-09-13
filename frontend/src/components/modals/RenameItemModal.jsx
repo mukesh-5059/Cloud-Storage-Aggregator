@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Edit2, AlertCircle } from 'lucide-react';
+import { formatFileName } from '../../utils/formatters';
 
 export default function RenameItemModal({
   isOpen,
@@ -16,7 +17,8 @@ export default function RenameItemModal({
 
   useEffect(() => {
     if (isOpen && fileItem) {
-      setNewName(fileItem.name || '');
+      const cleanName = formatFileName(fileItem.name || '');
+      setNewName(cleanName);
       setErrorMessage(null);
       setRenaming(false);
 
@@ -24,7 +26,7 @@ export default function RenameItemModal({
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
-          const dotIdx = fileItem.name.lastIndexOf('.');
+          const dotIdx = cleanName.lastIndexOf('.');
           if (dotIdx > 0 && !fileItem.is_folder) {
             inputRef.current.setSelectionRange(0, dotIdx);
           } else {
@@ -44,7 +46,7 @@ export default function RenameItemModal({
       setErrorMessage('Name cannot be empty');
       return;
     }
-    if (trimmed === fileItem.name) {
+    if (trimmed === fileItem.name || trimmed === formatFileName(fileItem.name)) {
       onClose();
       return;
     }
@@ -123,7 +125,7 @@ export default function RenameItemModal({
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <div className="modal-footer">
             <button type="button" className="btn-slate" onClick={onClose} disabled={renaming}>
               Cancel
             </button>

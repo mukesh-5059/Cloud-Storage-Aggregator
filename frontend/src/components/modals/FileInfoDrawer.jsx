@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Info, FileText, Folder, HardDrive, User, Calendar } from 'lucide-react';
-import { formatBytes } from '../../utils/formatters';
+import { formatBytes, formatFileName } from '../../utils/formatters';
 
 export default function FileInfoDrawer({ isOpen, onClose, file }) {
   if (!isOpen || !file) return null;
@@ -34,8 +34,8 @@ export default function FileInfoDrawer({ isOpen, onClose, file }) {
               <FileText size={32} color="var(--emerald-primary)" />
             )}
             <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-              <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={file.name}>
-                {file.name}
+              <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={formatFileName(file.name)}>
+                {formatFileName(file.name)}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="font-mono">
                 {file.is_folder ? 'Directory Folder' : (file.mime_type || 'Unknown Type')}

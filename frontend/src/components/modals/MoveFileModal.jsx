@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, FolderInput, Folder, FolderPlus, ChevronRight, Check, RefreshCw } from 'lucide-react';
+import { formatFileName } from '../../utils/formatters';
 
 export default function MoveFileModal({
   isOpen,
@@ -118,7 +119,7 @@ export default function MoveFileModal({
         <div className="modal-header">
           <h2 className="modal-title">
             <FolderInput size={20} color="var(--emerald-primary)" />
-            <span>Move "{fileToMove.name}"</span>
+            <span>Move "{formatFileName(fileToMove.name)}"</span>
           </h2>
           <button className="close-btn" onClick={onClose}>
             <X size={20} />

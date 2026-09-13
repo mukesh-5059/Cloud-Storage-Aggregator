@@ -48,7 +48,7 @@ export default function NewFolderModal({ isOpen, onClose, onCreateFolder }) {
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <div className="modal-footer">
             <button type="button" className="btn-slate" onClick={onClose} disabled={creating}>
               Cancel
             </button>

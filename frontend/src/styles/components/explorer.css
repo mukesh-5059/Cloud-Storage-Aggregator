@@ -134,11 +134,15 @@
 .selection-action-bar {
   height: 48px;
   min-height: 48px;
+  max-height: 48px;
   box-sizing: border-box;
   padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+  overflow: hidden;
   font-size: 0.85rem;
   background-color: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
@@ -458,3 +462,39 @@
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
 }
+
+/* 3-Dot Overflow Menu Button Styles (Mobile Only) */
+.row-menu-dots-btn,
+.grid-menu-dots-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.row-menu-dots-btn:hover,
+.grid-menu-dots-btn:hover {
+  color: var(--emerald-primary);
+  background-color: var(--bg-surface);
+}
+
+.grid-menu-dots-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+}
+
+@media (max-width: 767px) {
+  .row-menu-dots-btn,
+  .grid-menu-dots-btn {
+    display: inline-flex;
+  }
+}
+

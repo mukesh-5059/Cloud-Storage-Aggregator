@@ -1,9 +1,11 @@
 import React from 'react';
 import { X, Download, FileText, ExternalLink } from 'lucide-react';
+import { formatFileName } from '../../utils/formatters';
 
 export default function FilePreviewModal({ isOpen, onClose, file, appJwt, BACKEND_URL, onDownloadFile }) {
   if (!isOpen || !file) return null;
 
+  const displayName = formatFileName(file.name);
   const embedUrl = file.gdrive_file_id 
     ? `https://drive.google.com/file/d/${file.gdrive_file_id}/preview`
     : null;
@@ -23,7 +25,7 @@ export default function FilePreviewModal({ isOpen, onClose, file, appJwt, BACKEN
         <div className="preview-title-wrap">
           <FileText size={20} color="var(--emerald-primary)" />
           <div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)' }}>{file.name}</div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)' }}>{displayName}</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }} className="font-mono">
               Hosted by: {file.host_name || `User #${file.storage_user_id}`} • Uploaded by: {file.uploader_name || `User #${file.uploader_id}`}
             </div>

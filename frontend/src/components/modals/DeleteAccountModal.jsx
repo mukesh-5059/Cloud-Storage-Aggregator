@@ -146,7 +146,7 @@ export default function DeleteAccountModal({
             {/* Impact Metric Cards */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
               gap: '12px'
             }}>
               <div style={{
@@ -276,7 +276,7 @@ export default function DeleteAccountModal({
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '4px' }}>
+            <div className="modal-footer">
               <button className="btn-slate" onClick={onClose} disabled={deleting}>
                 Cancel & Keep Account
               </button>
@@ -289,7 +289,7 @@ export default function DeleteAccountModal({
                 {deleting ? (
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <RefreshCw className="animate-spin" size={16} />
-                    <span>Deleting Account & Executing Migrations...</span>
+                    <span>Deleting Account...</span>
                   </span>
                 ) : (
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
