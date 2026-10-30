@@ -1,0 +1,149 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="gatheraround-architecture-v2" name="GatherAround Scaled Architecture">
+    <mxGraphModel dx="1391" dy="965" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="950" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="rounded=1;arcSize=6;fontStyle=1;fontSize=12;verticalAlign=top;align=left;spacingLeft=15;spacingTop=8;fillColor=#f0fdf4;strokeColor=#86efac;strokeWidth=1.5;fontColor=#15803d;" value="User &amp; Load Testing Tier" vertex="1">
+          <mxGeometry height="115" width="480" x="50" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;" value="&lt;b&gt;Frontend Client (React / Vite)&lt;/b&gt;&lt;br&gt;Port 5173 / Render CDN&lt;br&gt;User Interface" vertex="1">
+          <mxGeometry height="60" width="210" x="70" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="4" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;" value="&lt;b&gt;Load Generator (k6)&lt;/b&gt;&lt;br&gt;1,000 HTTP Requests&amp;nbsp;&lt;br&gt;Stress Testing" vertex="1">
+          <mxGeometry height="60" width="210" x="300" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=1;arcSize=6;fontStyle=1;fontSize=12;verticalAlign=top;align=left;spacingLeft=15;spacingTop=8;fillColor=#f0fdf4;strokeColor=#86efac;strokeWidth=1.5;fontColor=#15803d;" value="Observability &amp; Telemetry Tier (Scrapes Nginx &amp; Logs)" vertex="1">
+          <mxGeometry height="115" width="860" x="660" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="6" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;" value="&lt;b&gt;Nginx Exporter&lt;/b&gt;&lt;br&gt;&lt;div&gt;Port 9113&lt;/div&gt;&lt;div&gt;sidecar container exposing metrics&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="180" x="680" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;" value="&lt;b&gt;Prometheus TSDB&lt;/b&gt;&lt;br&gt;Port 9090&lt;br&gt;metrics scrapper" vertex="1">
+          <mxGeometry height="60" width="190" x="990" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="8" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;" value="&lt;b&gt;Grafana Visualizer&lt;/b&gt;&lt;br&gt;&lt;div&gt;Port 3001&amp;nbsp;&lt;/div&gt;&lt;div&gt;metrics visualizer&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="190" x="1310" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="9" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=12;align=center;verticalAlign=middle;fillColor=#bbf7d0;strokeColor=#15803d;strokeWidth=2;fontColor=#14532d;shadow=1;" value="&lt;b&gt;Nginx Reverse Proxy &amp;amp; Load Balancer&lt;/b&gt;&lt;br&gt;Host Port: &lt;b&gt;8080&lt;/b&gt; (Container: 80)" vertex="1">
+          <mxGeometry height="70" width="380" x="150" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="10" parent="1" style="rounded=1;arcSize=6;fontStyle=1;fontSize=12;verticalAlign=top;align=left;spacingLeft=15;spacingTop=8;fillColor=#f0fdf4;strokeColor=#16a34a;strokeWidth=2;fontColor=#15803d;" value="Primary Cluster (3 Docker Backend Instances on app-network)" vertex="1">
+          <mxGeometry height="140" width="610" x="50" y="295" as="geometry" />
+        </mxCell>
+        <mxCell id="11" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;" value="&lt;b&gt;backend1&lt;/b&gt;&lt;br/&gt;FastAPI / Port 8000&lt;br/&gt;IP: 172.19.0.4" vertex="1">
+          <mxGeometry height="75" width="170" x="70" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="12" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;" value="&lt;b&gt;backend2&lt;/b&gt;&lt;br/&gt;FastAPI / Port 8000&lt;br/&gt;IP: 172.19.0.5" vertex="1">
+          <mxGeometry height="75" width="170" x="270" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="13" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;" value="&lt;b&gt;backend3&lt;/b&gt;&lt;br/&gt;FastAPI / Port 8000&lt;br/&gt;IP: 172.19.0.6" vertex="1">
+          <mxGeometry height="75" width="170" x="470" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="14" parent="1" style="rounded=1;arcSize=6;fontStyle=1;fontSize=12;verticalAlign=top;align=left;spacingLeft=15;spacingTop=8;fillColor=#fef2f2;strokeColor=#dc2626;strokeWidth=3;dashed=1;dashPattern=6 4;fontColor=#991b1b;" value="Cloud Bursting Elastic Tier (Render hosted Containers) " vertex="1">
+          <mxGeometry height="140" width="550" x="830" y="472.5" as="geometry" />
+        </mxCell>
+        <mxCell id="15" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#fee2e2;strokeColor=#ef4444;strokeWidth=2;dashed=1;dashPattern=4 4;fontColor=#991b1b;" value="&lt;b&gt;Render Cloud Instance A&lt;/b&gt;&lt;br&gt;Auto-burst on CPU &amp;gt; 80%" vertex="1">
+          <mxGeometry height="75" width="230" x="860" y="512.5" as="geometry" />
+        </mxCell>
+        <mxCell id="16" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#fee2e2;strokeColor=#ef4444;strokeWidth=2;dashed=1;dashPattern=4 4;fontColor=#991b1b;" value="&lt;b&gt;Render Cloud Instance B&lt;/b&gt;&lt;br&gt;Auto-burst on Queue &amp;gt; 200ms" vertex="1">
+          <mxGeometry height="75" width="230" x="1130" y="512.5" as="geometry" />
+        </mxCell>
+        <mxCell id="17" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#fee2e2;strokeColor=#dc2626;strokeWidth=2;fontColor=#991b1b;" value="&lt;b&gt;Redis In-Memory Cache&lt;/b&gt; (Port 6379)&lt;br&gt;Room &amp;amp; User Metadata Caching" vertex="1">
+          <mxGeometry height="65" width="370" x="155" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="18" parent="1" style="rounded=1;arcSize=6;fontStyle=1;fontSize=12;verticalAlign=top;align=left;spacingLeft=15;spacingTop=8;fillColor=#f0fdf4;strokeColor=#86efac;strokeWidth=1.5;fontColor=#15803d;" value="Cloud Database &amp; Distributed Storage Tier" vertex="1">
+          <mxGeometry height="135" width="1200" x="50" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="19" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;" value="&lt;b&gt;Neon PostgreSQL Cloud Database&lt;/b&gt;&lt;br&gt;AWS ap-southeast-1 server (Singapore)&lt;br&gt;Stores Rooms, Users, Memberships, &amp;amp; File Metadata" vertex="1">
+          <mxGeometry height="75" width="520" x="80" y="730" as="geometry" />
+        </mxCell>
+        <mxCell id="20" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;fontColor=#14532d;" value="&lt;b&gt;Google Drive Distributed Storage&lt;/b&gt;&lt;br&gt;&lt;div&gt;REST API v3 | Google Cloud OAuth 2.0 User Tokens&lt;/div&gt;actuall file storage" vertex="1">
+          <mxGeometry height="75" width="560" x="650" y="730" as="geometry" />
+        </mxCell>
+        <mxCell id="21" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;exitX=0.5;exitY=1;entryX=0.25;entryY=0;" target="9" value="User Requests">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="22" edge="1" parent="1" source="4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" target="9" value="1,000 Reqs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="23" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#16a34a;strokeWidth=1.5;dashed=1;fontColor=#14532d;exitX=1;exitY=0.5;" target="6" value="Scrapes /nginx_status">
+          <mxGeometry relative="1" x="-0.1818" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="550" y="220" />
+              <mxPoint x="550" y="150" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="24" edge="1" parent="1" source="6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="7" value="Prometheus Scrape">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="25" edge="1" parent="1" source="7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="8" value="PromQL Queries">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="26" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#15803d;strokeWidth=2;fontColor=#14532d;exitX=0.15;exitY=1;entryX=0.5;entryY=0;" target="11" value="RR #1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="27" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#15803d;strokeWidth=2;fontColor=#14532d;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="12" value="RR #2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="28" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#15803d;strokeWidth=2;fontColor=#14532d;exitX=0.85;exitY=1;entryX=0.5;entryY=0;" target="13" value="RR #3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="30" edge="1" parent="1" source="7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#dc2626;strokeWidth=2.5;dashed=1;dashPattern=5 3;fontColor=#991b1b;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="sotihKenxr0D1xWYHyJN-39" value="">
+          <mxGeometry relative="1" x="0.3222" as="geometry">
+            <Array as="points">
+              <mxPoint x="1090" y="280" />
+              <mxPoint x="1090" y="280" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="31" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#ef4444;strokeWidth=1.5;fontColor=#991b1b;exitX=0.5;exitY=1;entryX=0.2;entryY=0;" target="17" value="1. Read Cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="32" edge="1" parent="1" source="12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#ef4444;strokeWidth=1.5;fontColor=#991b1b;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="17" value="1. Read Cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="33" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#ef4444;strokeWidth=1.5;fontColor=#991b1b;exitX=0.5;exitY=1;entryX=0.8;entryY=0;" target="17" value="1. Read Cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="34" edge="1" parent="1" source="17" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#dc2626;strokeWidth=2;fontColor=#991b1b;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="19" value="Cache Miss / DB Sync">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="35" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#16a34a;strokeWidth=1.5;fontColor=#14532d;exitX=0.8;exitY=1;entryX=0.2;entryY=0;" target="20" value="OAuth File Uploads">
+          <mxGeometry relative="1" x="0.6218" y="-2" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="606" y="410" />
+              <mxPoint x="606" y="560" />
+              <mxPoint x="772" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="36" edge="1" parent="1" source="16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#dc2626;strokeWidth=1.5;dashed=1;fontColor=#991b1b;exitX=0.5;exitY=1;entryX=0.8;entryY=0;" target="20" value="Burst File Uploads">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="37" edge="1" parent="1" source="15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#dc2626;strokeWidth=1.5;dashed=1;fontColor=#991b1b;exitX=0;exitY=0.5;entryX=0.85;entryY=0;exitDx=0;exitDy=0;" target="19" value="Burst DB Queries">
+          <mxGeometry relative="1" x="0.668" y="8" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="550" y="550" />
+              <mxPoint x="550" y="590" />
+              <mxPoint x="522" y="590" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sotihKenxr0D1xWYHyJN-39" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fontSize=11;align=center;verticalAlign=middle;fillColor=#fee2e2;strokeColor=#ef4444;strokeWidth=2;dashed=1;dashPattern=4 4;fontColor=#991b1b;" value="&lt;div&gt;&lt;b&gt;Render cloud autoscaler&lt;/b&gt;&lt;/div&gt;&lt;div&gt;triggered by prometheus&amp;nbsp;&lt;/div&gt;&lt;div&gt;alertmanager&lt;/div&gt;" vertex="1">
+          <mxGeometry height="75" width="230" x="975" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="sotihKenxr0D1xWYHyJN-40" edge="1" parent="1" source="sotihKenxr0D1xWYHyJN-39" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=10;strokeColor=#dc2626;strokeWidth=2.5;dashed=1;dashPattern=5 3;fontColor=#991b1b;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" value="">
+          <mxGeometry relative="1" x="-0.1366" as="geometry">
+            <mxPoint x="1300" y="310" as="sourcePoint" />
+            <mxPoint x="1090" y="470" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

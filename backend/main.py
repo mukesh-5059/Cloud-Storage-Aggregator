@@ -1,8 +1,11 @@
+import os
 import logging
 import time
 import httpx
+from collections import Counter
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import engine, Base
@@ -41,7 +44,8 @@ logger = logging.getLogger("main")
 logging.getLogger("uvicorn.access").disabled = True
 
 
-Base.metadata.create_all(bind=engine)
+if os.environ.get("RUN_DB_MIGRATIONS", "false").lower() == "true":
+    Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -66,6 +70,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+metrics_counter = Counter()
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
@@ -88,7 +94,11 @@ async def log_requests(request: Request, call_next):
         if preflight_target:
             method_str = f"OPTIONS (Preflight for {preflight_target.upper()})"
 
-    logger.info(f"HTTP {method_str} {request.url.path} - Status {status_str} - Completed in {duration_ms:.1f}ms")
+    if request.url.path not in ["/metrics", "/stats.json", "/favicon.ico"]:
+        logger.info(f"HTTP {method_str} {request.url.path} - Status {status_str} - Completed in {duration_ms:.1f}ms")
+        inst = os.environ.get("INSTANCE_NAME", os.uname().nodename)
+        metrics_counter[(inst, request.method, request.url.path, str(status_code))] += 1
+
     return response
 
 app.include_router(auth.router)
@@ -102,5 +112,18 @@ def root():
 
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "instance": os.environ.get("INSTANCE_NAME", os.uname().nodename)
+    }
+
+@app.get("/metrics", response_class=PlainTextResponse)
+def get_prometheus_metrics():
+    lines = [
+        "# HELP http_requests_total Total number of HTTP requests processed",
+        "# TYPE http_requests_total counter"
+    ]
+    for (inst, method, path, status), count in metrics_counter.items():
+        lines.append(f'http_requests_total{{instance="{inst}",method="{method}",path="{path}",status="{status}"}} {count}')
+    return "\n".join(lines) + "\n"
 
