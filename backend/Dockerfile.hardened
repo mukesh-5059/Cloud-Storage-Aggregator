@@ -1,0 +1,19 @@
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# Non-root user (Principle of Least Privilege)
+RUN addgroup -g 10001 appgroup && \
+    adduser -u 10001 -G appgroup -s /bin/sh -D appuser
+
+# Dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip certifi urllib3 \
+    && pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
