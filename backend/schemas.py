@@ -144,5 +144,22 @@ class AccountDeletionPreviewResponse(BaseModel):
     cascaded_bytes: int
     rooms_breakdown: List[RoomDeletionPreview]
 
+class MFASetupResponse(BaseModel):
+    secret: str
+    otpauth_url: str
+    message: str
+
+class MFAVerifyRequest(BaseModel):
+    code: str
+
+class MFAVerifyResponse(BaseModel):
+    status: str
+    message: str
+    mfa_enabled: bool
+
+class KickMemberResponse(BaseModel):
+    status: str
+    message: str
+
 
 

@@ -17,4 +17,5 @@ dist/
 .vscode/
 .idea/
 *.log
-.~lock.*#
+.~lock.*#rooms_password_backup.json
+demo_q2b.py

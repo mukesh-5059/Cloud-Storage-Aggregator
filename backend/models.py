@@ -27,6 +27,8 @@ class User(Base):
     google_refresh_token = Column(EncryptedString, nullable=True)
     storage_limit = Column(BigInteger, nullable=True)
     storage_usage = Column(BigInteger, nullable=True)
+    mfa_secret = Column(String, nullable=True)
+    mfa_enabled = Column(Boolean, default=False, nullable=False)
 
     created_rooms = relationship("Room", back_populates="owner")
     room_memberships = relationship("UserRoom", back_populates="user", cascade="all, delete-orphan")

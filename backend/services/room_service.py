@@ -199,3 +199,28 @@ def get_room_dashboard(db: Session, room_id: int, user_id: int) -> Dict[str, Any
         "root_files": root_files_data
     }
 
+def kick_member(db: Session, room_id: int, target_user_id: int, current_user_id: int) -> Dict[str, str]:
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+    if room.owner_id != current_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Only the room owner has supervisor privileges to remove members from this room"
+        )
+    if target_user_id == room.owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Room owner cannot be kicked from their own room"
+        )
+    membership = db.query(UserRoom).filter(UserRoom.room_id == room_id, UserRoom.user_id == target_user_id).first()
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not a member of this room"
+        )
+    db.delete(membership)
+    db.commit()
+    return {"status": "success", "message": f"User {target_user_id} has been removed from room {room_id}"}
+
+

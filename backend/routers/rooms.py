@@ -6,7 +6,7 @@ from typing import List
 
 from database import get_db
 from models import User
-from schemas import RoomCreate, RoomJoin, RoomResponse, UserResponse, StorageContributeRequest, ContributionResponse
+from schemas import RoomCreate, RoomJoin, RoomResponse, UserResponse, StorageContributeRequest, ContributionResponse, KickMemberResponse
 from auth_utils import get_current_user
 from services import room_service
 
@@ -101,4 +101,19 @@ async def get_room_dashboard(
     """Retrieves consolidated storage pool statistics and member breakdown."""
     logger.info(f"Retrieved consolidated Dashboard for Room ID {room_id} (User ID {current_user.id})")
     return await run_in_threadpool(room_service.get_room_dashboard, db, room_id, current_user.id)
+
+@router.delete(
+    "/{room_id}/members/{user_id}",
+    response_model=KickMemberResponse,
+    summary="Kick Room Member (Restricted to Room Owner)",
+    description="Removes a member from the room. Restricted strictly to the room owner (RBAC). Rejected with 401 if unauthenticated and 403 if called by non-owner."
+)
+async def kick_room_member(
+    room_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return await run_in_threadpool(room_service.kick_member, db, room_id, user_id, current_user.id)
+
 
